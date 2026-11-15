@@ -14,6 +14,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "selfplay": "vitest run packages/core/tests/selfplay.test.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev": "npm run dev --workspace @a3/web",
     "build": "npm run build --workspace @a3/web"
