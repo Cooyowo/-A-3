@@ -25,6 +25,9 @@ Github Token.txt
 *.token
 .secrets/
 
+# 本地预览/截图临时产物
+.preview/
+
 # 系统 / 编辑器
 .DS_Store
 Thumbs.db
