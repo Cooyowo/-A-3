@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+
+# 依赖缓存（本机固定使用项目内缓存：npm.cmd install --cache .npm-cache）
+.npm-cache/
+
+# 运行时数据与日志
+data/
+*.log
+
+# 本地环境变量
+.env
+.env.local
+.env.*.local
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
