@@ -1,0 +1,443 @@
+/* ==========================================================================
+ * 剧场式场景（scene.css）—— 海边露台 + 暖棕木桌面 + 木质平台地面
+ * --------------------------------------------------------------------------
+ * 全部由 CSS 渐变 / 伪元素 / 内联 SVG data-uri 绘制：无外链图片、无第三方库、
+ * 无大面积 filter:blur（柔和一律用渐变的透明过渡模拟，照顾手机性能）。
+ * 配色刻意避开「台球桌墨绿」：海面是偏蓝的青，桌面是暖棕木，地面是浅木色。
+ *
+ * 画面分层（百分比都相对视口高度，横屏优先：844×390 / 1280×720）：
+ *   天空   .scene__sky           0    ~ 22%     柔蓝 + 几团淡云
+ *   海面   .scene__sea        19.5%  ~ 34.5%   蓝青海面 + 波光
+ *   海平线 .scene__horizon      20%  ~ 22.4%   一条被日光打亮的细线
+ *   栏杆   .scene__railing      28%  ~ 40.5%   露台栏杆（扶手 + 立柱）
+ *   桌面   .scene__table        10%  ~ 74%     96vw × 64dvh 暖棕木椭圆
+ *   纹样   .scene__table-center 42% 居中       淡回纹环带 + 水波纹
+ *   地面   .scene__ground       66%  ~ 100%    木质平台，z 高于桌面 → 自然截断桌沿
+ *
+ * z 轴（都在 .scene 自己的层叠上下文里，.scene 对外整体只占 z-index:0）：
+ *   sky 1 < sea 2 < horizon 3 < railing 4 < table 5 < table-center 6 < ground 8
+ * 因为桌面从 10% 一直铺到 74%，露台背景实际只在「顶部 10% 的横条」和
+ * 「椭圆左右弧线外的两块角部」里露出来——正好是留白和座位/调试条的位置。
+ * ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------
+   * 三个区域的文字色（table.css 按区域引用；这里给的是唯一来源）。
+   * 背景区（天空/海面）> 深蓝灰；桌面区 > 米白 / 浅金；地面区 > 深棕 / 米白。
+   * ------------------------------------------------------------------ */
+  --ink-sky: #26405c; /* 深蓝灰：天空、海面一带的文字 */
+  --ink-table: #f7edd9; /* 米白：桌面上的文字 */
+  --ink-gold: #eed8a4; /* 浅金：桌面上的标题/点缀 */
+  --ink-ground: #3a2a1a; /* 深棕：地面上的文字（配米白底） */
+}
+
+/* -------------------------------------------------------------- 场景根容器 */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* 纯装饰层，永远不接事件（座位/手牌/按钮都在更高的 z 上，但保险起见） */
+  pointer-events: none;
+  /* 兜底底色：海面 → 露台地面（和下面各层的接口色一致，避免出现缝隙） */
+  background: linear-gradient(
+    180deg,
+    #b8d6e5 0%,
+    #a2c6d6 16%,
+    #8fb9cb 24%,
+    #c1c3ac 34%,
+    #c8b189 50%,
+    #c9ab84 66%,
+    #b99a72 82%,
+    #a9885f 100%
+  );
+}
+
+/* ------------------------------------------------------------------ 天空 */
+/* 0 ~ 22%：上深下浅的天光，靠近海平线转暖；云是几团低对比的白色椭圆，
+ * 边缘用渐变收掉，不用 blur（大面积模糊在手机上很贵）。 */
+
+.scene__sky {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22%;
+  z-index: 1;
+  background:
+    radial-gradient(
+      ellipse 17vw 3.8dvh at 32% 30%,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.62) 46%,
+      rgba(255, 255, 255, 0) 76%
+    ),
+    radial-gradient(
+      ellipse 10vw 2.4dvh at 21% 20%,
+      rgba(255, 255, 255, 0.82) 0%,
+      rgba(255, 255, 255, 0.3) 52%,
+      rgba(255, 255, 255, 0) 76%
+    ),
+    radial-gradient(
+      ellipse 21vw 4dvh at 79% 27%,
+      rgba(255, 255, 255, 0.74) 0%,
+      rgba(255, 255, 255, 0.34) 50%,
+      rgba(255, 255, 255, 0) 78%
+    ),
+    radial-gradient(
+      ellipse 8vw 2dvh at 67% 15%,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0) 74%
+    ),
+    /* 天光本体：上深下浅，末段带一点暖色，和海面接得住 */
+    linear-gradient(
+      180deg,
+      #9dc6dd 0%,
+      #b3d5e6 26%,
+      #cbe4ec 58%,
+      #e3efef 82%,
+      #f4f0e3 100%
+    );
+}
+
+/* ------------------------------------------------------------------ 海面 */
+/* 容器 12% ~ 34.5%，可见水面 20% ~ 34.5%：蓝青渐变 + 两层错位的横向波纹 +
+ * 一小片日光反光。波纹是 repeating-linear-gradient，两层周期不同
+ * （1.6dvh / 2.7dvh）互相干扰，看起来比单层「等距横线」自然；
+ * 透明度压得很低，不会抢主体。 */
+
+.scene__sea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 容器 12% ~ 34.5%；顶上的 12%~20% 用 mask 渐隐，让天空透过来、
+   * 海面「从雾里长出来」，可见的水面从海平线（20%）开始。 */
+  top: 12%;
+  height: 22.5%;
+  z-index: 2;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, #000 36% 100%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, #000 36% 100%);
+  background:
+    /* 阳光在海面的一小片反光（y 都在海平线以下，别被上面的 mask 吃掉） */
+    radial-gradient(
+      ellipse 7vw 3.4dvh at 66% 50%,
+      rgba(255, 249, 224, 0.42) 0%,
+      rgba(255, 249, 224, 0) 74%
+    ),
+    radial-gradient(
+      ellipse 13vw 2.6dvh at 58% 68%,
+      rgba(255, 253, 238, 0.16) 0%,
+      rgba(255, 253, 238, 0) 78%
+    ),
+    /* 细碎波纹：两层不同周期，避免机械感 */
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.085) 0 max(1px, 0.12dvh),
+      rgba(255, 255, 255, 0) max(1px, 0.12dvh) 1.6dvh
+    ),
+    repeating-linear-gradient(
+      180deg,
+      rgba(232, 246, 250, 0.05) 0 max(1px, 0.1dvh),
+      rgba(232, 246, 250, 0) max(1px, 0.1dvh) 2.7dvh
+    ),
+    /* 海面本体：靠近海平线更亮更淡，往下逐渐加深 */
+    linear-gradient(
+      180deg,
+      #93c0d1 0%,
+      #7fb1c6 22%,
+      #6fa3ba 54%,
+      #5f93ae 100%
+    );
+}
+
+/* ---------------------------------------------------------------- 海平线 */
+/* 20% ~ 22.4%：一条亮的细线 + 上下各一层很淡的雾，让天空和海面「接住」
+ * 而不是生硬地贴在一起。这条线是天光里最亮的一笔，画面因此有呼吸感。 */
+
+.scene__horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20%;
+  height: 2.4%;
+  z-index: 3;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 240, 0) 0%,
+    rgba(255, 252, 240, 0.42) 26%,
+    rgba(255, 252, 240, 0.88) 34%,
+    rgba(255, 250, 234, 0.5) 44%,
+    rgba(198, 222, 232, 0.16) 64%,
+    rgba(198, 222, 232, 0) 100%
+  );
+}
+
+/* ------------------------------------------------------------------ 栏杆 */
+/* 28% ~ 40.5%：露台的中景栏杆。三层叠加：
+ *   ① 顶部一根带受光高光的暖白扶手；
+ *   ② repeating-linear-gradient 的等距立柱（0.22vw 宽、每 2.4vw 一根）；
+ *   ③ 底部一根淡横杆。
+ * 底部用 mask 渐隐，免得栏杆在画面里切出一条硬边。
+ * 注意：桌面（z 5）会盖住它，实际只在椭圆左右弧线外的角部露出来。 */
+
+.scene__railing {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 28%;
+  height: 12.5%;
+  z-index: 4;
+  background:
+    /* ① 扶手：高光边 + 木质厚度（画在最上面，压住立柱的顶端） */
+    linear-gradient(
+      180deg,
+      rgba(255, 253, 246, 0.95) 0 max(1px, 0.42dvh),
+      rgba(247, 241, 227, 0.72) max(1px, 0.42dvh) max(2px, 0.95dvh),
+      rgba(238, 230, 214, 0.28) max(2px, 0.95dvh) max(3px, 1.2dvh),
+      rgba(238, 230, 214, 0) max(3px, 1.2dvh) 100%
+    ),
+    /* ② 立柱：等距细竖条 */
+    repeating-linear-gradient(
+      90deg,
+      rgba(252, 247, 236, 0.6) 0 0.22vw,
+      rgba(252, 247, 236, 0) 0.22vw 2.4vw
+    ),
+    /* ③ 底部横杆 */
+    linear-gradient(
+      180deg,
+      rgba(246, 240, 226, 0) 0 calc(100% - 0.55dvh),
+      rgba(246, 240, 226, 0.5) calc(100% - 0.55dvh) 100%
+    );
+  -webkit-mask-image: linear-gradient(180deg, #000 0 60%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(180deg, #000 0 60%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* ------------------------------------------------------------------ 桌面 */
+/* top 10%、96vw × 64dvh 的暖棕木椭圆，底部 66% 之后被地面盖住。
+ * 材质要点：哑光（没有大面积高光/反光），用「中心微亮 + 四周压深」的
+ * 径向渐变做出体积，再叠两层极细的木纹线；外圈是低调的淡金内描边，
+ * 内沿压暗一点做出桌沿厚度。 */
+
+.scene__table {
+  position: absolute;
+  left: 50%;
+  top: 10%;
+  width: 96vw;
+  height: 64dvh;
+  z-index: 5;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background:
+    /* 中心受光（很淡，保持哑光） */
+    radial-gradient(
+      ellipse 58% 54% at 50% 42%,
+      rgba(255, 228, 180, 0.26) 0%,
+      rgba(255, 228, 180, 0.08) 54%,
+      rgba(255, 228, 180, 0) 78%
+    ),
+    /* 极细木纹：两个不同周期的竖斜线叠在一起，不会看出规律 */
+    repeating-linear-gradient(
+      92deg,
+      rgba(62, 36, 16, 0.05) 0 max(1px, 0.1dvh),
+      rgba(62, 36, 16, 0) max(1px, 0.1dvh) 3.4vw
+    ),
+    repeating-linear-gradient(
+      88deg,
+      rgba(255, 230, 190, 0.035) 0 max(1px, 0.08dvh),
+      rgba(255, 230, 190, 0) max(1px, 0.08dvh) 5.1vw
+    ),
+    /* 暖棕木主体：中间亮、外沿深 */
+    radial-gradient(
+      ellipse 66% 60% at 50% 40%,
+      #8d5f38 0%,
+      #7f5230 46%,
+      #6e4524 76%,
+      #5d3919 100%
+    );
+  /* 外投影：桌面两侧悬空的厚度（下沿被地面挡住，看不到） */
+  box-shadow:
+    0 1.2dvh 3.6dvh rgba(54, 32, 14, 0.34),
+    0 0.3dvh 1dvh rgba(54, 32, 14, 0.28);
+}
+
+/* 桌面描边与内沿：单独用伪元素，描边宽度不会被 box-shadow 的多层叠加搞混 */
+.scene__table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    /* 低调的淡金描边（1 像素质感） */
+    inset 0 0 0 max(1px, 0.22dvh) rgba(232, 204, 156, 0.5),
+    /* 描边内侧再压一圈暗，做出桌沿的厚度 */
+    inset 0 0 0 max(2px, 0.62dvh) rgba(66, 38, 18, 0.2),
+    /* 上沿受天光、下沿沉下去 */
+    inset 0 0.6dvh 1.8dvh rgba(255, 232, 196, 0.12),
+    inset 0 -1.6dvh 3dvh rgba(52, 28, 10, 0.32);
+}
+
+/* -------------------------------------------------------------- 桌面纹样 */
+/* 桌面正中的国风纹样：一个正圆形的「回纹环带」+ 内侧很淡的水波纹。
+ * 尺寸用 min(56vw, 42dvh) 保证在 844×390 与 1280×720 下都是正圆（不然
+ * 椭圆环带在横竖两个方向的粗细会差很多倍）。
+ * - ::before 回纹：一条 <1KB 的内联 SVG data-uri（方形回字螺旋），
+ *   平铺后被 radial-gradient 遮罩裁成一条环带，整体 opacity 压到很淡。
+ * - ::after 水波纹：repeating-radial-gradient 同心圈，中间强、两头弱。
+ */
+
+.scene__table-center {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(56vw, 42dvh);
+  height: min(56vw, 42dvh);
+  z-index: 6;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.scene__table-center::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* 回纹单元：32×32 的方形螺旋，只描边不填充，颜色 #efdcb4（配 surface 的浅金） */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M6 26V6h20v20H12V12h8v8' fill='none' stroke='%23efdcb4' stroke-width='1.5' stroke-linejoin='miter'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: center;
+  background-size: 3.4dvh 3.4dvh;
+  opacity: 0.34;
+  /* 只留最外圈一条环带：0~70% 透明 → 74%~92% 显示 → 96% 淡出 */
+  -webkit-mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    transparent 0 70%,
+    #000 74% 92%,
+    transparent 96%
+  );
+  mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    transparent 0 70%,
+    #000 74% 92%,
+    transparent 96%
+  );
+}
+
+.scene__table-center::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    ellipse at 50% 50%,
+    rgba(246, 228, 190, 0.55) 0 max(1px, 0.09dvh),
+    rgba(246, 228, 190, 0) max(1px, 0.09dvh) 2.5dvh
+  );
+  opacity: 0.16;
+  /* 中间一圈最清楚，靠近中心与边缘都淡掉 */
+  -webkit-mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(0, 0, 0, 0.12) 0 16%,
+    #000 44%,
+    rgba(0, 0, 0, 0) 76%
+  );
+  mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(0, 0, 0, 0.12) 0 16%,
+    #000 44%,
+    rgba(0, 0, 0, 0) 76%
+  );
+}
+
+/* ------------------------------------------------------------------ 地面 */
+/* 66% ~ 100%：木质平台。z 比桌面高，所以桌面 66%~74% 这一段被它盖住，
+ * 视觉上就是「桌沿被地板自然地挡住」。
+ * 背景四层：顶沿受光 → 桌沿投在地面上的软阴影 → 阳光洒下的一层暖光 → 木色本体。
+ * ::before 是透视木纹（纵向板缝用 conic 射线模拟灭点，横向板缝间隔向下变大）；
+ * ::after 是底部压暗的暗角，把视线收回到画面中间。 */
+
+.scene__ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 66%;
+  height: 34%;
+  z-index: 8;
+  overflow: hidden;
+  background:
+    /* 顶沿一道很薄的受光，等于舞台前缘 */
+    linear-gradient(
+      180deg,
+      rgba(255, 242, 218, 0.5) 0%,
+      rgba(255, 242, 218, 0.12) 2.4%,
+      rgba(255, 242, 218, 0) 7%
+    ),
+    /* 桌面压在地面上的接触阴影 */
+    radial-gradient(
+      ellipse 70vw 8dvh at 50% -1%,
+      rgba(52, 32, 14, 0.5) 0%,
+      rgba(52, 32, 14, 0.2) 46%,
+      rgba(52, 32, 14, 0) 74%
+    ),
+    /* 阳光洒在平台上的暖光 */
+    radial-gradient(
+      ellipse 62vw 26dvh at 50% 0%,
+      rgba(255, 242, 214, 0.2) 0%,
+      rgba(255, 242, 214, 0) 76%
+    ),
+    /* 木色本体：近处略深，远处略浅 */
+    linear-gradient(
+      180deg,
+      #cbb08a 0%,
+      #c3a67e 14%,
+      #b6956d 44%,
+      #a9885f 74%,
+      #8f6f4c 100%
+    );
+}
+
+.scene__ground::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    /* 横向板缝：间隔 15% → 31% → 50% → 73%，一层比一层宽，就是近大远小 */
+    linear-gradient(
+      180deg,
+      rgba(90, 60, 30, 0) 0 15%,
+      rgba(90, 60, 30, 0.1) 15% calc(15% + 1px),
+      rgba(90, 60, 30, 0) calc(15% + 1px) 31%,
+      rgba(90, 60, 30, 0.1) 31% calc(31% + 1px),
+      rgba(90, 60, 30, 0) calc(31% + 1px) 50%,
+      rgba(90, 60, 30, 0.1) 50% calc(50% + 1px),
+      rgba(90, 60, 30, 0) calc(50% + 1px) 73%,
+      rgba(90, 60, 30, 0.1) 73% calc(73% + 1px),
+      rgba(90, 60, 30, 0) calc(73% + 1px) 100%
+    ),
+    /* 纵向板缝：灭点放在地面上方，conic 的射线天然带「近处变粗、间距变大」的透视 */
+    repeating-conic-gradient(
+      from 168deg at 50% -46%,
+      rgba(86, 56, 28, 0.16) 0deg 0.4deg,
+      rgba(86, 56, 28, 0) 0.4deg 5.6deg
+    );
+}
+
+.scene__ground::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 120vw 20dvh at 50% 118%,
+    rgba(56, 36, 16, 0.3) 0%,
+    rgba(56, 36, 16, 0) 72%
+  );
+}
+
+/* -------------------------------------------------------------- 竖屏兜底 */
+/* 竖屏 / 明显偏高的窗口不给牌桌（table.css 已经隐藏 .tbl），场景也一起收掉，
+ * 只留 .tbl-shell 的兜底渐变 + .rotate-hint 提示，避免素材被拉成细长椭圆。 */
+
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .scene {
+    display: none;
+  }
+}

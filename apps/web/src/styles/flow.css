@@ -1,0 +1,430 @@
+/* 流程层样式（欢迎页 / 阶段提示 / 供牌动画 / 回牌与挑选回牌 / 提示条）
+ * 本文件由 Lead 维护；场景在 scene.css、牌在 poker.css、座位在 seat.css。 */
+
+/* 内容层必须整体压过场景层：
+ * scene.css 里各层 z-index 到 8（地面最高），而手牌是 7、会被地面盖住。
+ * 给 .felt 一个 z-index 建立独立层叠上下文，里面的手牌/亮牌/按钮就都在场景之上了。 */
+.felt {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+/* ---------------------------------------------------------------- 按钮 */
+
+.btn-primary,
+.btn-ghost {
+  min-height: calc(100dvh * 0.095);
+  padding: 0 clamp(14px, 2vw, 26px);
+  border-radius: 999px;
+  font-size: clamp(15px, 2.4dvh, 22px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.btn-primary {
+  border: 1px solid #b8862c;
+  background: linear-gradient(180deg, #ffe39a, #e8b53f);
+  color: #4a2f00;
+  box-shadow: 0 0.6dvh 1.6dvh rgba(0, 0, 0, 0.35);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  border: 1px solid rgba(247, 243, 230, 0.45);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--paper, #f7f3e6);
+}
+
+.btn-primary:active,
+.btn-ghost:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* ---------------------------------------------------------------- 欢迎页 */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2dvh;
+  text-align: center;
+  padding: 4dvh 6vw;
+}
+
+.welcome h1 {
+  margin: 0;
+  font-size: clamp(34px, 9dvh, 76px);
+  letter-spacing: 0.16em;
+  color: #f6e3ae;
+  text-shadow: 0 0.4dvh 2dvh rgba(0, 0, 0, 0.55);
+}
+
+.welcome__sub {
+  margin: 0;
+  font-size: clamp(12px, 2dvh, 18px);
+  letter-spacing: 0.2em;
+  color: #f1e6c8;
+  opacity: 0.85;
+}
+
+.welcome__enter {
+  margin-top: 1dvh;
+  min-height: calc(100dvh * 0.12);
+  padding: 0 clamp(28px, 4vw, 52px);
+  border-radius: 999px;
+  border: 1px solid #b8862c;
+  background: linear-gradient(180deg, #ffe39a, #e8b53f);
+  color: #4a2f00;
+  font-size: clamp(17px, 2.8dvh, 26px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  box-shadow: 0 1dvh 3dvh rgba(0, 0, 0, 0.45);
+}
+
+.welcome__enter:active {
+  transform: translateY(2px);
+}
+
+.welcome__tip {
+  margin: 0;
+  margin-top: 2dvh;
+  font-size: clamp(11px, 1.7dvh, 15px);
+  color: #f1e6c8;
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------------- 阶段提示 */
+
+.stage-banner {
+  margin: 0 0 1dvh;
+  font-size: clamp(16px, 2.8dvh, 28px);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #f0c860;
+  text-shadow: 0 0.3dvh 1.4dvh rgba(0, 0, 0, 0.55);
+  animation: stage-banner-in 0.35s ease-out;
+}
+
+@keyframes stage-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.8dvh) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------- 中央提示卡片（明牌 / 供不出 / 回牌倒计时） */
+
+.center-card {
+  width: min(38vw, 460px);
+  padding: 1.6dvh 1.4vw;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 200, 96, 0.45);
+  background: rgba(28, 18, 10, 0.78);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1.4dvh 4dvh rgba(0, 0, 0, 0.4);
+}
+
+.center-card__title {
+  margin: 0 0 0.6dvh;
+  font-size: clamp(13px, 2dvh, 19px);
+  font-weight: 700;
+  color: #f4dfa8;
+}
+
+.center-card__line {
+  margin: 0 0 0.8dvh;
+  font-size: clamp(10px, 1.6dvh, 14px);
+  line-height: 1.4;
+  color: rgba(247, 243, 230, 0.8);
+}
+
+.center-card__timer {
+  font-size: clamp(18px, 3.2dvh, 30px);
+  font-weight: 800;
+  color: #ffd97a;
+  margin-bottom: 0.8dvh;
+}
+
+.center-card__actions {
+  display: flex;
+  gap: 1.2vw;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------- 供牌展示与飞牌 */
+
+.supply-out {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  margin-top: 0.8dvh;
+  z-index: 6;
+  pointer-events: none;
+  animation: supply-drop 0.3s ease-out;
+}
+
+@keyframes supply-drop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-1dvh);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 飞牌：从输家位置飞向赢家方向（移动阶段用 transform 位移做“飞走”效果） */
+.supply-out--top-left {
+  animation: fly-left 0.8s ease-in forwards;
+}
+
+.supply-out--top-right {
+  animation: fly-right 0.8s ease-in forwards;
+}
+
+.supply-out--top {
+  animation: fly-top 0.8s ease-in forwards;
+}
+
+@keyframes fly-left {
+  to {
+    opacity: 0;
+    transform: translateX(60%) translateY(22dvh) scale(0.82);
+  }
+}
+
+@keyframes fly-right {
+  to {
+    opacity: 0;
+    transform: translateX(-160%) translateY(22dvh) scale(0.82);
+  }
+}
+
+@keyframes fly-top {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(24dvh) scale(0.82);
+  }
+}
+
+/* ---------------------------------------------------------------- 挑回牌 */
+
+.pick-zone {
+  margin-top: 1dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8dvh;
+  padding: 1.2dvh 1vw;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 200, 96, 0.35);
+  background: rgba(28, 18, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.pick-zone__hint {
+  margin: 0;
+  font-size: clamp(10px, 1.6dvh, 14px);
+  color: rgba(247, 243, 230, 0.78);
+}
+
+.pick-btn {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 9dvh);
+  transform: translateX(-50%);
+  z-index: 9;
+  min-height: calc(100dvh * 0.085);
+  padding: 0 clamp(12px, 1.8vw, 22px);
+  border-radius: 999px;
+  border: 1px solid #b8862c;
+  background: linear-gradient(180deg, #ffe39a, #e8b53f);
+  color: #4a2f00;
+  font-size: clamp(13px, 2dvh, 19px);
+  font-weight: 800;
+  animation: pick-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes pick-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(240, 200, 96, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 0.8dvh rgba(240, 200, 96, 0);
+  }
+}
+
+/* ---------------------------------------------------------------- 赢家回牌操作区 */
+
+.return-actions {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  padding: 0.6dvh 1.2vw;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 200, 96, 0.4);
+  background: rgba(28, 18, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.return-actions__count {
+  font-size: clamp(12px, 1.9dvh, 18px);
+  color: #f4dfa8;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.return-actions__timer {
+  font-size: clamp(13px, 2.1dvh, 20px);
+  font-weight: 800;
+  color: #ffd97a;
+  min-width: 3.2em;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- 提示条 */
+
+.notice {
+  position: fixed;
+  left: 50%;
+  top: 10%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: 70vw;
+  padding: 1.2dvh 2vw;
+  border-radius: 999px;
+  font-size: clamp(12px, 1.9dvh, 17px);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.notice--info {
+  background: rgba(20, 30, 46, 0.92);
+  border-color: rgba(160, 200, 255, 0.5);
+  color: #dceaff;
+}
+
+.notice--error {
+  background: rgba(70, 20, 18, 0.94);
+  border-color: rgba(240, 140, 130, 0.65);
+  color: #ffd7d2;
+}
+
+.notice--success {
+  background: rgba(18, 52, 32, 0.94);
+  border-color: rgba(140, 230, 160, 0.55);
+  color: #d8ffe2;
+}
+
+/* ---------------------------------------------------------------- 「不出」大字（用户要求更显眼） */
+
+.center__pass {
+  font-size: clamp(22px, 4.6dvh, 42px);
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #ffe08a;
+  text-shadow: 0 0.4dvh 1.6dvh rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------------------------------------------------------- 流程面板（锁定窗口 / 结算）跟随暖色主题 */
+
+.pp-panel {
+  background: rgba(40, 27, 15, 0.95);
+  border: 1px solid rgba(240, 200, 96, 0.45);
+  color: #f4ead2;
+}
+
+.pp-title,
+.pp-kicker,
+.pp-panel h2 {
+  color: #f0c860;
+}
+
+.pp-panel .pp-lead,
+.pp-panel blockquote,
+.pp-panel li,
+.pp-panel p {
+  color: #f1e5c9;
+}
+
+/* 顶部调试条里的种子文字在窄屏会挤压按钮，先隐藏（需要复现时看代码/控制台） */
+.debug__seed {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 发牌动画 */
+
+.deal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.deal-layer__stack {
+  position: absolute;
+  display: flex;
+  gap: 0.4vw;
+}
+
+.deal-layer__stack--0 {
+  left: 12%;
+  top: 30%;
+}
+
+.deal-layer__stack--1 {
+  right: 12%;
+  top: 30%;
+}
+
+.deal-layer__stack--2 {
+  left: 46%;
+  top: 14%;
+}
+
+.deal-layer__stack--3 {
+  left: 46%;
+  bottom: 12%;
+}
+
+.deal-layer__card {
+  width: calc((100dvh * 2) / 7 * 0.71 * 0.5);
+  height: calc((100dvh * 2) / 7 * 0.5);
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1d3b2c, #0f2318);
+  border: 1px solid rgba(240, 200, 96, 0.5);
+  box-shadow: 0 0.4dvh 1.4dvh rgba(0, 0, 0, 0.5);
+  animation: deal-fly 1.05s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes deal-fly {
+  from {
+    opacity: 0;
+    transform: translateY(-6dvh) rotate(-12deg) scale(0.6);
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}

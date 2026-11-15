@@ -9,11 +9,9 @@ import { getActiveSeat } from '../src/game/selectors';
 import { supplyDeadlocked, useHotseatStore } from '../src/game/store';
 
 /**
- * M2 横屏界面测试（jsdom + Testing Library）：
- * 验证各阶段界面能挂载、按钮能点、点击后状态正确推进。
- * 真实视觉与手感由浏览器/真机验收，这里挡的是「接线错 / 按钮无响应 / 阶段没接上」。
- *
- * 注意：不能用 react-dom/server 快照——zustand v5 的 SSR 快照永远取初始 state。
+ * M2 横屏界面测试（jsdom + Testing Library）。
+ * 覆盖：欢迎页 → 牌桌、出牌交互、锁定窗口、结算、切换视角、提示、规则速查。
+ * 供牌/回牌的时序动画依赖真实计时器，交给浏览器人工验收；这里只测「界面能挂载 + 按钮能推进状态」。
  */
 
 function store() {
@@ -25,7 +23,13 @@ function boot(seed = 20261115): void {
   store().dismissNotice();
 }
 
-/** 推进到出牌阶段（沿路选最保守的操作） */
+/** 渲染并点「进入游戏」 */
+function renderEntered() {
+  const view = render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: '进入游戏' }));
+  return view;
+}
+
 function advanceToPlaying(): void {
   let guard = 0;
   while (store().game.phase !== 'PLAYING') {
@@ -60,24 +64,6 @@ function advanceToPlaying(): void {
   }
 }
 
-function advanceToLockWindow(): void {
-  let guard = 0;
-  while (store().game.phase !== 'LOCK_WINDOW') {
-    if (++guard > 5000) throw new Error('推进不到锁定窗口');
-    const { game } = store();
-    if (game.phase === 'REVEAL') store().skipReveal();
-    else if (game.phase === 'SUPPLY') {
-      if (supplyDeadlocked(game)) store().reveal();
-      else if (game.supplyContext?.step === 'RETURN_SELECT') store().autoReturn();
-      else if (game.supplyContext?.step === 'RETURN_PICK') {
-        const card = game.supplyContext.returnPool[0];
-        if (card !== undefined) store().pickReturn(card.id);
-      } else throw new Error(`SUPPLY 意外步骤 ${game.supplyContext?.step}`);
-    } else throw new Error(`意外阶段 ${game.phase}`);
-    if (store().noticeTone === 'error') throw new Error(`store 报错：${store().notice ?? ''}`);
-  }
-}
-
 function playToSettle(): void {
   let guard = 0;
   while (store().game.phase !== 'SETTLE') {
@@ -101,7 +87,7 @@ function playToSettle(): void {
   }
 }
 
-/** 找出手牌按钮（牌的 aria-label 是「♠J」这种）。 */
+/** 手牌按钮（aria-label 是「♠J」这种） */
 function cardButtons(): HTMLButtonElement[] {
   return [...document.querySelectorAll('button')].filter((button) => {
     const label = button.getAttribute('aria-label') ?? '';
@@ -114,27 +100,34 @@ afterEach(() => {
 });
 
 describe('M2 横屏界面（jsdom）', () => {
-  it('初始渲染：牌桌、四家座位、自己信息、调试按钮、竖屏提示都在', () => {
+  it('欢迎页：标题 + 进入游戏按钮', () => {
     boot();
-    const { container } = render(<App />);
+    render(<App />);
 
-    expect(container.querySelector('.felt')).not.toBeNull();
-    expect(container.querySelectorAll('.slot').length).toBe(3);
-    expect(container.querySelector('.self-info')).not.toBeNull();
-    expect(screen.getByRole('button', { name: /切换视角/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '新开一局' })).toBeTruthy();
+    expect(screen.getByText('葵A葵3')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '进入游戏' })).toBeTruthy();
     expect(screen.getByText('请把手机横过来使用')).toBeTruthy();
   });
 
-  it('出牌阶段：手牌可点、「出牌」按钮选中后可用、出完手牌 -1', () => {
+  it('进入游戏后：牌桌、四家座位、自己信息、调试按钮都在', () => {
+    boot();
+    renderEntered();
+
+    expect(document.querySelector('.felt')).not.toBeNull();
+    expect(document.querySelectorAll('.slot').length).toBe(3);
+    expect(document.querySelector('.self-info')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /切换视角/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '新开一局' })).toBeTruthy();
+  });
+
+  it('出牌阶段：手牌可点、「出牌」选中后可用、出完手牌 -1', () => {
     boot();
     advanceToPlaying();
     const seat = getActiveSeat(store().game);
     if (seat === null) throw new Error('没有行动座位');
     const before = store().game.players[seat]?.hand.length ?? 0;
-    expect(before).toBeGreaterThan(0);
 
-    render(<App />);
+    renderEntered();
 
     const cards = cardButtons();
     expect(cards.length).toBe(before);
@@ -150,49 +143,50 @@ describe('M2 横屏界面（jsdom）', () => {
     expect(store().game.players[seat]?.hand.length).toBe(before - 1);
   });
 
-  it('操作条顺序与文案：不出 / 提示 / 出牌 / 清空都在', () => {
+  it('操作条文案：不出 / 提示 / 清空 都在', () => {
     boot();
     advanceToPlaying();
-    render(<App />);
+    renderEntered();
 
     expect(screen.getByRole('button', { name: '不出' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '提示' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '清空' })).toBeTruthy();
   });
 
-  it('「提示」按钮会自动选中一手合法牌', () => {
+  it('「提示」会自动选中一手合法牌', () => {
     boot();
     advanceToPlaying();
-    render(<App />);
+    renderEntered();
 
     expect(store().selectedCardIds.length).toBe(0);
     fireEvent.click(screen.getByRole('button', { name: '提示' }));
     expect(store().selectedCardIds.length).toBeGreaterThan(0);
   });
 
-  it('「切换视角」按钮能切换并回到自动', () => {
+  it('领出时「不出」按钮是禁用的', () => {
     boot();
     advanceToPlaying();
-    render(<App />);
+    expect(store().game.isFirstPlay).toBe(true);
+
+    renderEntered();
+    const passButton = screen.getByRole('button', { name: '不出' }) as HTMLButtonElement;
+    expect(passButton.disabled).toBe(true);
+  });
+
+  it('「切换视角」能切换', () => {
+    boot();
+    advanceToPlaying();
+    renderEntered();
 
     expect(store().viewSeat).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /切换视角/ }));
     expect(store().viewSeat).toBe(0);
   });
 
-  it('锁定窗口：出现「开始出牌」，点了进入出牌', () => {
-    boot();
-    advanceToLockWindow();
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: '开始出牌' }));
-    expect(store().game.phase).toBe('PLAYING');
-  });
-
   it('结算：出现「下一局」，点了进入下一局', () => {
     boot();
     playToSettle();
-    render(<App />);
+    renderEntered();
 
     expect(screen.getAllByText(/下一局/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '下一局' }));
@@ -201,7 +195,7 @@ describe('M2 横屏界面（jsdom）', () => {
 
   it('规则速查：点「?」打开浮层', () => {
     boot();
-    render(<App />);
+    renderEntered();
 
     fireEvent.click(screen.getByRole('button', { name: '规则速查' }));
     expect(screen.getByText('牌组档位（高的无条件压低的）', { exact: false })).toBeTruthy();

@@ -91,6 +91,7 @@ function emptySupplyContext(): SupplyContext {
     perWinner: new Map<number, number>(),
     biggestCardByLoser: new Map<number, Card>(),
     returns: new Map<number, Card[]>(),
+    transfers: [],
   };
 }
 
@@ -108,6 +109,7 @@ function cloneSupplyContext(context: SupplyContext | null): SupplyContext | null
     perWinner: new Map(context.perWinner),
     biggestCardByLoser: new Map(context.biggestCardByLoser),
     returns,
+    transfers: context.transfers.map((transfer) => ({ ...transfer })),
   };
 }
 
@@ -237,6 +239,7 @@ export function createGame(
     nextRankSlot: 1,
     rankTaken: [false, false, false, false, false],
     redealCount: 0,
+    supplyGainedIds: [],
     lockIntents: new Map<number, boolean>(),
     result: null,
     log: [{ t: 'DEAL', handNo }],
@@ -288,6 +291,12 @@ function doDistribute(state: GameState, context: SupplyContext): void {
 
   const gained = distributeSupply(state, context.pool, debt);
 
+  // 供牌流向（输家 → 赢家），供牌飞牌动画与「供来的牌标色」都靠它
+  const fromByCardId = new Map<number, number>();
+  for (const [from, cards] of context.perLoser) {
+    for (const card of cards) fromByCardId.set(card.id, from);
+  }
+
   context.perWinner = new Map<number, number>();
   let total = 0;
   for (const seat of debt.winners) {
@@ -297,6 +306,10 @@ function doDistribute(state: GameState, context: SupplyContext): void {
     const known = before.get(seat) ?? new Set<number>();
     const received = playerAt(state, seat).hand.filter((card) => !known.has(card.id));
     state.log.push({ t: 'DISTRIBUTE', to: seat, cards: received });
+    for (const card of received) {
+      context.transfers.push({ from: fromByCardId.get(card.id) ?? -1, to: seat, card });
+      if (!state.supplyGainedIds.includes(card.id)) state.supplyGainedIds.push(card.id);
+    }
   }
   for (const [seat, count] of gained) {
     if (!context.perWinner.has(seat)) context.perWinner.set(seat, count);
@@ -836,6 +849,8 @@ export function resolveLockWindow(state: GameState, intents: readonly number[]):
   next.passesSinceLastPlay = 0;
   next.isFirstPlay = true;
   next.trickNo = 1;
+  // 正式开始：供来的牌「复原」成普通颜色（界面不再高亮）
+  next.supplyGainedIds = [];
 
   // 重新解析首发（resolveFirstSeat 内部已处理「原首发已锁定 → 下家」的 Q-015 口径）
   let firstSeat = resolveFirstSeat(next);

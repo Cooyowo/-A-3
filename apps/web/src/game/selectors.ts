@@ -3,6 +3,7 @@ import {
   checkSupplyPossible,
   cmpCard,
   currentReturnPicker,
+  eligibleCards,
   isLandlordCard,
   lockEligible,
   rankScore,
@@ -391,4 +392,138 @@ export function getTurnLabel(game: GameState): string {
   if (game.isFirstPlay) return `轮到 ${label} 领出`;
   return `轮到 ${label} 出牌`;
 }
+
+// ---------------------------------------------------------------------------
+// 供牌 / 回牌流程（桌面内嵌 + 动画用）
+// ---------------------------------------------------------------------------
+
+export interface PlannedSupply {
+  losers: { seat: number; label: string; cards: Card[] }[];
+  winners: number[];
+  amountPerLoser: number;
+  total: number;
+  revealed: boolean;
+}
+
+/**
+ * 本局「将要供哪些牌」：发牌后、供牌执行前（REVEAL 或 SUPPLY/CHECK）就能先把输家要交的牌标上颜色。
+ * 供牌已经执行后（COLLECT 之后）不再适用，返回 null。
+ */
+export function getPlannedSupply(game: GameState): PlannedSupply | null {
+  const debt = game.pendingDebt;
+  if (debt === null || game.revealedSeat !== null) return null;
+  const beforeSupply =
+    game.phase === 'REVEAL' || (game.phase === 'SUPPLY' && game.supplyContext?.step === 'CHECK');
+  if (!beforeSupply) return null;
+
+  const losers = debt.losers.map((seat) => ({
+    seat,
+    label: getSeatLabel(seat),
+    cards: sortHandDesc(eligibleCards(game.players[seat]?.hand ?? [])).slice(0, debt.amountPerLoser),
+  }));
+  if (losers.some((row) => row.cards.length < debt.amountPerLoser)) return null;
+
+  return {
+    losers,
+    winners: debt.winners,
+    amountPerLoser: debt.amountPerLoser,
+    total: debt.total,
+    revealed: debt.revealed,
+  };
+}
+
+/** 供牌流向（输家 → 赢家），用于飞牌动画 */
+export function getSupplyTransfers(game: GameState): { from: number; to: number; card: Card }[] {
+  return game.supplyContext?.transfers ?? [];
+}
+
+/** 供来的牌 id（正式开始前标色用） */
+export function getSupplyGainedIds(game: GameState): number[] {
+  return game.supplyGainedIds;
+}
+
+/** 现在是否处于「正式开始之前」——供来的牌需要标色 */
+export function shouldTintSupply(game: GameState): boolean {
+  return game.phase === 'SUPPLY' || game.phase === 'LOCK_WINDOW';
+}
+
+export interface ReturnSelectState {
+  winner: number;
+  label: string;
+  required: number;
+  hand: Card[];
+  tintedIds: number[];
+  submitted: boolean;
+}
+
+/** 当前正在选回牌的赢家（没有则 null） */
+export function getReturnSelectState(game: GameState): ReturnSelectState | null {
+  const context = game.supplyContext;
+  const debt = game.pendingDebt;
+  if (context === null || debt === null || context.step !== 'RETURN_SELECT') return null;
+  const winner = debt.winners.find((seat) => !context.returns.has(seat));
+  if (winner === undefined) return null;
+  return {
+    winner,
+    label: getSeatLabel(winner),
+    required: context.perWinner.get(winner) ?? 0,
+    hand: sortHandDesc(game.players[winner]?.hand ?? []),
+    tintedIds: game.supplyGainedIds,
+    submitted: false,
+  };
+}
+
+export interface PickState {
+  picker: number;
+  pickerLabel: string;
+  pool: Card[];
+  /** 各输家还要挑几张（挑满 13 张为止） */
+  rows: { seat: number; label: string; remaining: number }[];
+  /** 双地明牌输（1 个输家、要挑 12 张）→ 跳过手动挑选，倒计时结束后整批转过去 */
+  autoMode: boolean;
+}
+
+/** 当前挑回牌的阶段信息（没有则 null） */
+export function getPickState(game: GameState): PickState | null {
+  const context = game.supplyContext;
+  const debt = game.pendingDebt;
+  if (context === null || debt === null || context.step !== 'RETURN_PICK') return null;
+  const picker = currentReturnPicker(game);
+  if (picker === null) return null;
+  const rows = debt.losers.map((seat) => ({
+    seat,
+    label: getSeatLabel(seat),
+    remaining: Math.max(0, 13 - (game.players[seat]?.hand.length ?? 13)),
+  }));
+  return {
+    picker,
+    pickerLabel: getSeatLabel(picker),
+    pool: context.returnPool,
+    rows,
+    autoMode: debt.losers.length === 1 && debt.amountPerLoser >= 12,
+  };
+}
+
+/** 供牌/回牌阶段的桌面中央大提示 */
+export function getSupplyStageText(game: GameState): string {
+  if (game.phase === 'REVEAL') return '供牌倒计时';
+  if (game.phase === 'LOCK_WINDOW') return '锁定窗口';
+  const step = game.supplyContext?.step;
+  if (game.phase !== 'SUPPLY' || step === undefined) return '供牌';
+  switch (step) {
+    case 'CHECK':
+      return '供牌检查';
+    case 'COLLECT':
+      return '供牌';
+    case 'DISTRIBUTE':
+      return '供牌';
+    case 'RETURN_SELECT':
+      return '回牌';
+    case 'RETURN_PICK':
+      return '挑选回牌';
+    default:
+      return '供牌';
+  }
+}
+
 

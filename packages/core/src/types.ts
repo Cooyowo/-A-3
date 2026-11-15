@@ -124,6 +124,11 @@ export interface SupplyContext {
   biggestCardByLoser: Map<number, Card>;
   /** 赢家已提交的回牌 */
   returns: Map<number, Card[]>;
+  /**
+   * 供牌流向（谁交给谁），供牌动画用：
+   * from = 输家座位，to = 赢家座位，card = 那张牌
+   */
+  transfers: { from: number; to: number; card: Card }[];
 }
 
 /** 结算结果 */
@@ -205,6 +210,12 @@ export interface GameState {
 
   /** 本局已重新发牌次数（上限 MAX_REDEAL） */
   redealCount: number;
+
+  /**
+   * 本局通过「供牌」拿到的牌 id（赢家视角）。
+   * 界面用它在「正式开始之前」把这些牌标成不同颜色；进入 PLAYING 时清空（复原颜色）。
+   */
+  supplyGainedIds: number[];
 
   /** 锁定窗口内各座位的最新意向（true = 申请锁定） */
   lockIntents: Map<number, boolean>;

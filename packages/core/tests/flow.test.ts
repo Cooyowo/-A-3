@@ -540,6 +540,7 @@ describe('供牌（SUPPLY）', () => {
       perWinner: new Map([[1, 1]]),
       biggestCardByLoser: new Map(),
       returns: new Map(),
+      transfers: [],
     };
     state.pendingDebt = {
       winners: [1],

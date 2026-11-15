@@ -1,12 +1,40 @@
-/* 横屏牌桌布局（本文件由 Lead 维护：只管“摆在哪”，牌/座位/面板的样式在
- * poker.css / seat.css / panels.css 里）。 */
+/* ==========================================================================
+ * 横屏牌桌布局（table.css）
+ * --------------------------------------------------------------------------
+ * 本文件只管「摆在哪 + 这一带的文字是什么颜色」，桌面/海面/地面的画面在
+ * scene.css 里（.scene__*），牌 / 座位 / 面板的外观在 poker.css / seat.css /
+ * panels.css 里。
+ *
+ * 剧场式构图（百分比相对视口）：
+ *   · .felt 现在是纯定位容器（inset:0、无背景），座位槽的百分比 = 整屏百分比；
+ *   · 顶部座位落在天空那一条（top 9%），两个角座位落在露台/海面一带（top 24%）；
+ *   · .center 在暖棕木桌面的中下部（top 46%）；
+ *   · .strip-wrap / .self-info 在木质地面上（底部公式不变，手牌在它们下面）。
+ *
+ * 文字配色按区域取 scene.css 的 :root 变量（都带兜底值，万一 scene.css 没被
+ * 加载也不会掉成透明）：
+ *   背景区（天空/海面）→ var(--ink-sky)     深蓝灰
+ *   桌面区            → var(--ink-table) / var(--ink-gold)  米白 / 浅金
+ *   地面区            → var(--ink-ground)   深棕（配米白底）
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------- 外壳 */
 
 .tbl-shell {
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
-  background: #100c09;
+  /* 兜底背景：.scene 没挂载 / 竖屏时也还是「柔和天光 → 木地板」，不是黑底；
+   * 挂载了 .scene 之后这层会被完全盖住（.scene 在最底层）。 */
+  background: linear-gradient(
+    180deg,
+    #cfe3ee 0%,
+    #b4d2e0 24%,
+    #d9c6a4 56%,
+    #c2a27a 78%,
+    #ad8c64 100%
+  );
   overflow: hidden;
 }
 
@@ -17,10 +45,18 @@
   flex-direction: column;
   align-items: center;
   gap: 2dvh;
-  color: var(--gold);
+  /* 背景区文字：深蓝灰；在亮天光上加一点白色描边式的阴影保证可读 */
+  color: var(--ink-sky, #26405c);
   font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   padding: 8dvh 6vw;
   text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.rotate-hint p {
+  margin: 0;
 }
 
 .rotate-icon {
@@ -40,18 +76,9 @@
   }
 }
 
-/* 竖屏（或明显偏高的窗口）直接不给牌桌，只提示横屏 */
-@media (orientation: portrait) {
-  .tbl {
-    display: none;
-  }
-  .rotate-hint {
-    display: flex;
-  }
-}
-
-/* 电脑上窗口很窄但高度大时也按竖屏处理 */
-@media (max-aspect-ratio: 1/1) {
+/* 竖屏（或明显偏高的窗口）直接不给牌桌，只提示横屏：
+ * 手机竖屏命中 orientation:portrait；电脑上窗口很窄但高度大时命中 max-aspect-ratio。 */
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .tbl {
     display: none;
   }
@@ -68,41 +95,36 @@
   height: 100dvh;
 }
 
+/* 内容定位容器：桌面视觉已全部交给 scene.css 的 .scene__table，
+ * 这里必须保持「无背景、无圆角、无阴影」，只负责给绝对定位的子元素当坐标系。 */
 .felt {
   position: absolute;
-  inset: 2.4dvh 1.8vw;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 36%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 46%),
-    radial-gradient(ellipse at 50% 45%, var(--felt-bright) 0%, var(--felt) 58%, var(--felt-deep) 100%);
-  /* 木框：向内画一圈木色边，外面再加一圈深色描边 */
-  box-shadow:
-    inset 0 0 0 1.1dvh var(--wood),
-    inset 0 0 0 1.5dvh var(--wood-dark),
-    inset 0 2.4dvh 6dvh rgba(0, 0, 0, 0.32),
-    0 0 0 0.35dvh var(--wood-dark);
+  inset: 0;
+  background: none;
 }
 
-/* 四个座位槽 */
+/* 三个对手座位槽 */
 .slot {
   position: absolute;
   z-index: 5;
 }
 
+/* 对家：落在顶部天空那一条里（桌面椭圆的上沿之上） */
 .slot--top {
   left: 50%;
-  top: 4.5%;
+  top: 9%;
   transform: translateX(-50%);
 }
 
+/* 上家 / 下家：落在椭圆左右弧线外的露台与海面一带，靠近桌沿 */
 .slot--top-left {
-  left: 6%;
-  top: 19%;
+  left: 7%;
+  top: 24%;
 }
 
 .slot--top-right {
-  right: 6%;
-  top: 19%;
+  right: 7%;
+  top: 24%;
 }
 
 /* ---------------------------------------------------------------- 中央出牌区 */
@@ -110,20 +132,27 @@
 .center {
   position: absolute;
   left: 50%;
-  top: 45%;
+  top: 46%;
   transform: translate(-50%, -50%);
   width: 42vw;
   z-index: 3;
   text-align: center;
+  /* 中心区本身不吃点击（它盖在桌面正中，别挡住别的层）；但里面会放
+   * 明牌决策按钮、可点的回牌等交互内容，所以直接子元素要把事件收回来。 */
   pointer-events: none;
 }
 
+.center > * {
+  pointer-events: auto;
+}
+
+/* 桌面区文字：浅金 + 深色投影（木色底上用亮字） */
 .center__turn {
   margin: 0 0 1dvh;
   font-size: clamp(11px, 1.7dvh, 17px);
   letter-spacing: 0.06em;
-  color: var(--gold);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  color: var(--ink-gold, #eed8a4);
+  text-shadow: 0 1px 4px rgba(40, 22, 8, 0.62);
 }
 
 .center__zone {
@@ -133,35 +162,50 @@
   min-height: calc(100dvh * 0.14);
 }
 
+/* 桌面区文字：米白（比标题更亮、更大） */
 .center__pass {
   font-size: clamp(15px, 2.6dvh, 26px);
   letter-spacing: 0.22em;
-  color: #ffe08a;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  text-indent: 0.22em;
+  color: var(--ink-table, #f7edd9);
+  text-shadow: 0 2px 8px rgba(40, 22, 8, 0.6);
 }
 
-/* ---------------------------------------------------------------- 自己的信息（左下角小头像） */
+/* ------------------------------------------------ 自己的信息（左下角小头像） */
+/* 地面区：米白胶囊 + 深棕文字。位置与 .strip-wrap 完全同高（同一条底部基准线），
+ * 靠左 2.4vw，不会和居中的操作条互相压。 */
 
 .self-info {
   position: fixed;
   left: 2.4vw;
-  /* 放到手牌上方那一带（与操作条同高，但靠左，不会互相压） */
-  bottom: calc(100dvh / 14 + (100dvh * 2) / 7 + 1.4dvh);
+  bottom: calc(100dvh / 14 + (100dvh * 2) / 7 + 4dvh);
   display: flex;
   align-items: center;
   gap: 1dvh;
-  z-index: 9;
-  padding: 0.8dvh 1.2vw 0.8dvh 0.8dvh;
+  z-index: 6;
+  padding: 0.7dvh 1.1vw 0.7dvh 0.7dvh;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(240, 200, 96, 0.28);
+  background: linear-gradient(
+    180deg,
+    rgba(251, 244, 230, 0.94) 0%,
+    rgba(235, 219, 194, 0.9) 100%
+  );
+  border: max(1px, 0.12dvh) solid rgba(150, 112, 58, 0.42);
+  color: var(--ink-ground, #3a2a1a);
+  box-shadow:
+    0 0.5dvh 1.4dvh rgba(48, 30, 12, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .self-info[data-active='true'] {
-  border-color: var(--gold);
-  box-shadow: 0 0 1.6dvh rgba(240, 200, 96, 0.45);
+  border-color: rgba(198, 154, 78, 0.95);
+  box-shadow:
+    0 0.5dvh 1.4dvh rgba(48, 30, 12, 0.26),
+    0 0 1.4dvh rgba(214, 168, 86, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+/* 头像：暖砂色小圆，深棕数字（原来是墨绿底，跟着木色/地面改暖） */
 .self-avatar {
   width: calc(100dvh * 0.09);
   height: calc(100dvh * 0.09);
@@ -170,9 +214,11 @@
   place-items: center;
   font-size: calc(100dvh * 0.045);
   font-weight: 700;
-  color: #14301f;
-  background: radial-gradient(circle at 35% 30%, #fdf6dd, #e8c46a 70%);
-  box-shadow: inset 0 0 0 0.25dvh rgba(0, 0, 0, 0.25);
+  color: #3b2712;
+  background: radial-gradient(circle at 35% 30%, #fdf3dd 0%, #e6c996 70%, #d3b079 100%);
+  box-shadow:
+    inset 0 0 0 max(1px, 0.25dvh) rgba(120, 84, 40, 0.28),
+    0 1px 3px rgba(60, 38, 16, 0.24);
 }
 
 .self-meta {
@@ -183,23 +229,25 @@
 }
 
 .self-name {
-  color: var(--gold);
-  font-weight: 600;
+  color: #4a3116;
+  font-weight: 700;
 }
 
 .self-count {
-  opacity: 0.8;
+  color: #5b442a;
+  opacity: 0.82;
 }
 
 .self-landlord {
   padding: 0 0.6vw;
   border-radius: 4px;
-  background: var(--gold);
-  color: #402a00;
+  background: linear-gradient(180deg, #ffe9a8 0%, #e8c46a 100%);
+  color: #4a2500;
   font-size: 0.85em;
   font-weight: 700;
 }
 
+/* 奖牌：金 / 银 / 铜（地面区，保持高对比的小圆片） */
 .self-medal {
   display: grid;
   place-items: center;
@@ -225,6 +273,8 @@
 }
 
 /* ---------------------------------------------------------------- 操作条与手牌 */
+/* 这条 bottom 是手牌（poker.css 的 --hand-card-h = 100dvh×2/7、--hand-bottom =
+ * 100dvh/14）与操作条之间的硬约定，App 和 HandFan 都按它接线，不要改。 */
 
 .strip-wrap {
   position: fixed;
@@ -235,17 +285,24 @@
   z-index: 8;
 }
 
+/* 只读提示：地面区的米白胶囊 + 深棕字（原来是黑底浅字） */
 .strip-wrap--readonly {
   padding: 0.9dvh 2vw;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(240, 200, 96, 0.22);
+  background: linear-gradient(
+    180deg,
+    rgba(251, 244, 230, 0.92) 0%,
+    rgba(233, 216, 190, 0.86) 100%
+  );
+  border: max(1px, 0.12dvh) solid rgba(150, 112, 58, 0.38);
   font-size: clamp(11px, 1.6dvh, 15px);
-  color: rgba(247, 243, 230, 0.72);
+  color: var(--ink-ground, #3a2a1a);
   white-space: nowrap;
+  box-shadow: 0 0.5dvh 1.2dvh rgba(48, 30, 12, 0.22);
 }
 
 /* ---------------------------------------------------------------- 测试工具条 */
+/* 位于右上角天空那一条：浅米白胶囊 + 深蓝灰字（背景区配色）。 */
 
 .debug {
   position: fixed;
@@ -261,16 +318,21 @@
   min-height: calc(100dvh * 0.062);
   padding: 0 1.1vw;
   border-radius: 999px;
-  border: 1px solid rgba(240, 200, 96, 0.35);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--paper);
+  border: max(1px, 0.12dvh) solid rgba(146, 112, 62, 0.34);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 244, 0.86) 0%,
+    rgba(240, 232, 216, 0.78) 100%
+  );
+  color: var(--ink-sky, #26405c);
   font-size: clamp(10px, 1.5dvh, 14px);
   white-space: nowrap;
+  box-shadow: 0 0.3dvh 0.9dvh rgba(48, 34, 16, 0.16);
 }
 
 .debug__btn:hover {
-  border-color: var(--gold);
-  color: var(--gold);
+  border-color: rgba(198, 154, 78, 0.9);
+  color: #7a4e18;
 }
 
 .debug__btn--icon {
@@ -281,11 +343,14 @@
 
 .debug__seed {
   font-size: clamp(9px, 1.3dvh, 12px);
-  opacity: 0.45;
+  color: var(--ink-sky, #26405c);
+  opacity: 0.55;
   white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------- 浮层（流程面板 / 规则速查） */
+/* 浮层不跟着场景换浅色：里面的流程面板（panels.css）是深色卡，所以遮罩保留
+ * 深色，只是从墨绿换成偏暖的深棕。这里不用 backdrop-filter（全屏模糊在手机上贵）。 */
 
 .overlay {
   position: fixed;
@@ -294,8 +359,7 @@
   display: grid;
   place-items: center;
   padding: 3dvh 3vw;
-  background: rgba(6, 14, 10, 0.55);
-  backdrop-filter: blur(2px);
+  background: rgba(34, 23, 11, 0.58);
   overflow: auto;
 }
 
@@ -310,20 +374,25 @@
 .overlay__line {
   margin: 0;
   font-size: clamp(11px, 1.7dvh, 15px);
-  color: #ffe08a;
+  color: #f6e8cb;
   text-align: center;
   max-width: 70vw;
+  text-shadow: 0 1px 4px rgba(24, 14, 4, 0.6);
 }
 
+/* 规则速查：改成米黄纸卡片 + 深棕字（原来是深绿底），和木色/地面一套 */
 .help {
   max-width: min(78vw, 860px);
   max-height: 84dvh;
   overflow: auto;
   padding: 3dvh 3vw;
   border-radius: 16px;
-  background: rgba(10, 26, 18, 0.96);
-  border: 1px solid rgba(240, 200, 96, 0.4);
-  box-shadow: 0 2dvh 6dvh rgba(0, 0, 0, 0.5);
+  background: linear-gradient(170deg, #fbf4e4 0%, #f2e6ce 100%);
+  border: max(1px, 0.14dvh) solid rgba(186, 146, 84, 0.55);
+  box-shadow:
+    0 2dvh 6dvh rgba(40, 24, 10, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  color: #432f1c;
   font-size: clamp(12px, 1.8dvh, 16px);
   line-height: 1.7;
 }
@@ -331,7 +400,7 @@
 .help h2 {
   margin: 0 0 1.2dvh;
   font-size: clamp(16px, 2.4dvh, 22px);
-  color: var(--gold);
+  color: #7b5320;
 }
 
 .help ul {

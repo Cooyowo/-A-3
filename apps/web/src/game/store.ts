@@ -11,6 +11,7 @@ import {
   isLandlordCard,
   legalActions,
   lockEligible,
+  maxCard,
   resolveLockWindow,
   settleAndNextHand,
   validatePlay,
@@ -31,6 +32,8 @@ export interface HotseatGame {
   noticeTone: 'info' | 'error' | 'success';
   /** 测试用的「手动切视角」：null = 跟随当前行动者，0~3 = 固定看某个座位 */
   viewSeat: number | null;
+  /** 挑回牌时，桌面中间被点亮的回牌 id（点【选这张】才真正拿走） */
+  highlightedReturnId: number | null;
 }
 
 export interface HotseatActions {
@@ -52,6 +55,12 @@ export interface HotseatActions {
   dismissNotice(): void;
   /** 测试用：循环切换视角（自动 → 1 号位 → 2 号位 → 3 号位 → 4 号位 → 自动） */
   cycleViewSeat(): void;
+  /** 挑回牌：点亮桌面中间的一张回牌 */
+  highlightReturn(cardId: number): void;
+  /** 挑回牌：确认拿走当前点亮的回牌 */
+  confirmPickReturn(): void;
+  /** 挑回牌超时：自动拿最大的那张回牌（用户口径：超时默认选最大的回牌） */
+  autoPickReturn(): void;
 }
 
 export type HotseatStore = HotseatGame & HotseatActions;
@@ -59,7 +68,15 @@ export type HotseatStore = HotseatGame & HotseatActions;
 function initialState(seed: number): HotseatGame {
   const rng: Rng = mulberry32(seed);
   const game = autoAdvance(createGame(rng));
-  return { game, seed, selectedCardIds: [], notice: null, noticeTone: 'info', viewSeat: null };
+  return {
+    game,
+    seed,
+    selectedCardIds: [],
+    notice: null,
+    noticeTone: 'info',
+    viewSeat: null,
+    highlightedReturnId: null,
+  };
 }
 
 /** 包一层：引擎抛错一律转成提示，不让界面崩掉 */
@@ -93,7 +110,13 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
     try {
       const rng = mulberry32(seed + game.handNo * 1000 + game.redealCount);
       const next = autoAdvance(applyAction(game, seat, action, rng));
-      apply({ game: next, selectedCardIds: [], notice: null, noticeTone: 'info' });
+      apply({
+        game: next,
+        selectedCardIds: [],
+        highlightedReturnId: null,
+        notice: null,
+        noticeTone: 'info',
+      });
     } catch (error) {
       apply({
         notice: error instanceof Error ? error.message : String(error),
@@ -267,6 +290,44 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
       const card = game.supplyContext.returnPool.find((item) => item.id === cardId);
       if (card === undefined) return apply({ notice: '回牌池里没有这张牌', noticeTone: 'error' });
       runAction(picker, { kind: 'PICK_RETURN', card });
+    },
+
+    /** 点亮桌面中间的一张回牌（再点【选这张】才真正拿走，防误触） */
+    highlightReturn(cardId) {
+      const { game } = get();
+      if (game.phase !== 'SUPPLY' || game.supplyContext?.step !== 'RETURN_PICK') {
+        return apply({ notice: '现在不是挑回牌的环节', noticeTone: 'error' });
+      }
+      const exists = game.supplyContext.returnPool.some((card) => card.id === cardId);
+      apply({ highlightedReturnId: exists ? cardId : null });
+    },
+
+    /** 【选这张】：拿走当前点亮的回牌（没点亮时提示） */
+    confirmPickReturn() {
+      const { game, highlightedReturnId } = get();
+      if (game.phase !== 'SUPPLY' || game.supplyContext?.step !== 'RETURN_PICK') {
+        return apply({ notice: '现在不是挑回牌的环节', noticeTone: 'error' });
+      }
+      const picker = currentReturnPicker(game);
+      if (picker === null) return apply({ notice: '找不到需要挑牌的输家', noticeTone: 'error' });
+      const pool = game.supplyContext.returnPool;
+      const target =
+        highlightedReturnId === null ? null : pool.find((card) => card.id === highlightedReturnId) ?? null;
+      if (target === null) {
+        return apply({ notice: '请先在桌面中间点一张回牌', noticeTone: 'error' });
+      }
+      runAction(picker, { kind: 'PICK_RETURN', card: target });
+    },
+
+    /** 挑回牌超时：自动拿最大的那张回牌（用户口径） */
+    autoPickReturn() {
+      const { game } = get();
+      if (game.phase !== 'SUPPLY' || game.supplyContext?.step !== 'RETURN_PICK') return;
+      const picker = currentReturnPicker(game);
+      if (picker === null) return;
+      const target = maxCard(game.supplyContext.returnPool);
+      if (target === null) return;
+      runAction(picker, { kind: 'PICK_RETURN', card: target });
     },
 
     nextHand() {

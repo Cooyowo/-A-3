@@ -1,20 +1,22 @@
 /**
- * M2 横屏牌面组件：PokerCard / CardBack / CardRow
+ * M2 横屏牌面组件 v2：PokerCard / CardBack / CardRow
  *
  * 纯展示组件：不 import store、不读写 localStorage、没有任何定时器，
  * 所有状态都从 props 来（点击只把回调抛给上层）。
  *
  * 尺寸（页面按横屏设计，100dvh = 屏幕高度，全部在 poker.css 里推导）：
- *   手牌 .pk--hand   : 牌高 = 100dvh * 2/7       ≈ 屏幕高 28.6%（用户要求的「大牌」）
+ *   手牌 .pk--hand   : 牌高 = 100dvh * 2/7       ≈ 屏幕高 28.6%
  *   打出 .pk--played : 牌高 = 手牌高 * 0.58      （「展示牌一半多一点」）
  *   小牌 .pk--mini   : 牌高 = 100dvh * 0.09      （座位旁 / 面板里的小牌）
  *   牌宽一律 = 牌高 * 0.71（标准扑克 2.5:3.5 ≈ 1:0.714）
  * 三档都提供 --pk-h / --pk-w 两个自定义属性，外部可在祖先上覆盖
  * --hand-card-h / --played-card-h / --mini-card-h，或直接给牌元素写 inline 的 --pk-h。
  *
- * 牌面纯 CSS 绘制（无图片）：白/米白底 + 圆角 + 细深色描边 + 内高光；
- * 中央「大点数 + 大花色」竖排（两者高度之和 ≈ 牌高 50%），左上角另有小角标
- * （手牌叠放时只露出左侧一条，全靠它认牌）；♥♦ 红、♠♣ 近黑。
+ * 牌面 v2（用户要求：牌更大、左上角「数字在上、花色在下」、去掉右下角重复角标）：
+ *   左上角点数 0.30 × 牌高、紧贴其下花色 0.26 × 牌高，合计 ≈ 牌高一半；
+ *   中央只留一枚很淡的大花色水印（opacity 0.09 ≤ 0.10），不抢角标的注意力；
+ *   ♥♦ 红（#c0392b）、♠♣ 近黑（#1b1b1b），手牌叠放时靠左上角标认牌。
+ *   tinted（供来的牌）= 暖金描边 + 淡金底 + 右上角金色小三角，和普通白牌一眼可分。
  */
 
 import type { CSSProperties, ReactElement } from 'react';
@@ -32,8 +34,10 @@ export interface PokerCardProps {
   card: Card;
   /** 默认 'mini'；手牌传 'hand'，桌面中央打出的牌传 'played' */
   size?: PokerCardSize;
-  /** 选中：上浮 + 金色描边/光晕 */
+  /** 选中：上浮 12% 牌高 + 金色描边/光晕 */
   selected?: boolean;
+  /** 供来的牌：暖金描边 + 淡金底（正式开始前和普通手牌区分，正式开始后父组件不再传） */
+  tinted?: boolean;
   /** 变暗：还在展示但弱化（例如提示里不是主牌、不可用的牌） */
   dimmed?: boolean;
   /** 禁用：更淡且不可点 */
@@ -41,7 +45,7 @@ export interface PokerCardProps {
   /** 传了才渲染 <button type="button">，否则渲染 role="img" 的纯展示牌 */
   onClick?: () => void;
   className?: string;
-  /** 布局用内联样式（HandFan 用它写叠放负 margin） */
+  /** 布局用内联样式（HandFan 用它写每排的 --hand-gaps） */
   style?: CSSProperties;
 }
 
@@ -65,6 +69,8 @@ export interface CardRowProps {
   onCardClick?: (card: Card) => void;
   /** 选中牌的 id 集合（配合 onCardClick 做点选高亮） */
   selectedIds?: readonly number[];
+  /** 供来的牌 id 集合（命中即渲染成高亮牌，供牌阶段结束后由上层清空） */
+  tintedIds?: readonly number[];
 }
 
 /** 拼接 className，自动丢掉 false / undefined / 空串 */
@@ -78,9 +84,10 @@ function suitTone(card: Card): string {
 }
 
 /**
- * 牌面内容层：
- * - 左上角小角标（点数在上、花色在下），手牌叠放时靠它辨认；
- * - 中央大点数 + 大花色竖排（两者高度之和 ≈ 牌高 50%）。
+ * 牌面内容层（v2）：
+ * - 左上角：点数在上、花色紧贴其下，两者合计约牌高一半（手牌叠放时只露左侧一条，全靠它认牌）；
+ * - 中央：一枚很淡的大花色水印（opacity 由 CSS 控制在 0.10 以内）。
+ * 不再有右下角重复角标，也不再有「中央大点数」。
  * 全部 aria-hidden：整张牌的可读名称由外层 aria-label 统一提供。
  */
 function CardFace({ card }: { card: Card }): ReactElement {
@@ -88,13 +95,13 @@ function CardFace({ card }: { card: Card }): ReactElement {
   const suit = SUIT_SYMBOL[card.suit];
   return (
     <>
+      {/* 中央水印先渲染，左上角标后渲染 → 角标永远压在水印上面 */}
+      <span className="pk__mark" aria-hidden="true">
+        {suit}
+      </span>
       <span className="pk__corner" aria-hidden="true">
         <span className="pk__corner-rank">{rank}</span>
         <span className="pk__corner-suit">{suit}</span>
-      </span>
-      <span className="pk__center" aria-hidden="true">
-        <span className="pk__rank">{rank}</span>
-        <span className="pk__suit">{suit}</span>
       </span>
     </>
   );
@@ -109,6 +116,7 @@ export function PokerCard({
   card,
   size = 'mini',
   selected = false,
+  tinted = false,
   dimmed = false,
   disabled = false,
   onClick,
@@ -121,6 +129,7 @@ export function PokerCard({
     `pk--${size}`,
     suitTone(card),
     selected && 'pk--selected',
+    tinted && 'pk--tinted',
     dimmed && 'pk--dimmed',
     disabled && 'pk--disabled',
     onClick !== undefined && 'pk--interactive',
@@ -189,12 +198,14 @@ export function CardRow({
   className,
   onCardClick,
   selectedIds,
+  tintedIds,
 }: CardRowProps): ReactElement {
   if (cards.length === 0) {
     return <span className={cx('pk-row__empty', className)}>{emptyText}</span>;
   }
 
   const selected = selectedIds === undefined ? null : new Set<number>(selectedIds);
+  const tinted = tintedIds === undefined ? null : new Set<number>(tintedIds);
 
   return (
     <div className={cx('pk-row', className)} data-size={size}>
@@ -204,6 +215,7 @@ export function CardRow({
           card={card}
           size={size}
           selected={selected?.has(card.id) ?? false}
+          tinted={tinted?.has(card.id) ?? false}
           onClick={onCardClick === undefined ? undefined : () => onCardClick(card)}
         />
       ))}
