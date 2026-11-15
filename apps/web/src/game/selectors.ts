@@ -328,3 +328,67 @@ export function getLastPlayText(game: GameState): { seat: number; label: string;
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// 横屏斗地主界面的派生数据
+// ---------------------------------------------------------------------------
+
+/** 某座位在本墩（trickNo）里的最后一次动作：出牌 / 不出 / 无 */
+export type SeatTrickAction = { kind: 'PLAY'; cards: Card[] } | { kind: 'PASS' };
+
+export function getSeatTrickAction(game: GameState, seat: number): SeatTrickAction | null {
+  for (let index = game.log.length - 1; index >= 0; index -= 1) {
+    const event = game.log[index];
+    if (event === undefined) continue;
+    if (event.t !== 'PLAY' && event.t !== 'PASS') continue;
+    if (event.trick !== game.trickNo) continue;
+    if (event.seat !== seat) continue;
+    return event.t === 'PLAY' ? { kind: 'PLAY', cards: event.cards } : { kind: 'PASS' };
+  }
+  return null;
+}
+
+/** 该座位的地主身份是否已公开（明牌 / 打出过 ♠3 或 ♠A / 已结算） */
+export function isLandlordPublic(game: GameState, seat: number): boolean {
+  if (game.phase === 'SETTLE') return game.landlordSeats.includes(seat);
+  if (game.revealedSeat === seat) return true;
+  return game.log.some(
+    (event) => event.t === 'PLAY' && event.seat === seat && event.cards.some((card) => isLandlordCard(card)),
+  );
+}
+
+/** 打完的名次 → 金银铜牌（1/2/3），第 4 名没有奖牌 */
+export function getMedal(game: GameState, seat: number): 1 | 2 | 3 | null {
+  const rank = game.players[seat]?.rank ?? null;
+  if (rank === 1 || rank === 2 || rank === 3) return rank;
+  return null;
+}
+
+/** 「自己」是哪个座位：测试时可以手动切视角，否则跟着当前行动者 */
+export function getSelfSeat(game: GameState, viewSeat: number | null): number {
+  if (viewSeat !== null) return viewSeat;
+  return getActiveSeat(game) ?? game.firstSeat ?? 0;
+}
+
+/** 「轮到谁」的短提示（横屏顶部小字） */
+export function getTurnLabel(game: GameState): string {
+  if (game.phase !== 'PLAYING') {
+    switch (game.phase) {
+      case 'REVEAL':
+        return '等待明牌决策';
+      case 'SUPPLY':
+        return '供牌 / 回牌';
+      case 'LOCK_WINDOW':
+        return '等待锁定表态';
+      case 'SETTLE':
+        return '本局结束';
+      default:
+        return '发牌中';
+    }
+  }
+  const active = getActiveSeat(game);
+  const label = active === null ? '' : getSeatLabel(active);
+  if (game.isFirstPlay) return `轮到 ${label} 领出`;
+  return `轮到 ${label} 出牌`;
+}
+

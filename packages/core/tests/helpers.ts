@@ -138,6 +138,7 @@ export function makeState(options: MakeStateOptions = {}): GameState {
     threePhase: options.threePhase ?? false,
     isFirstPlay: options.isFirstPlay ?? (options.topPattern === undefined || options.topPattern === null),
     passesSinceLastPlay: options.passesSinceLastPlay ?? 0,
+    trickNo: 0,
     publicCards: options.publicCards ?? [],
     finishOrder: [],
     nextRankSlot: options.nextRankSlot ?? 1,

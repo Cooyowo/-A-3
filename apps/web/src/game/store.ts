@@ -4,10 +4,12 @@ import {
   applyAction,
   autoAdvance,
   checkSupplyPossible,
+  cmpCard,
   createGame,
   currentReturnPicker,
   defaultReturnCards,
   isLandlordCard,
+  legalActions,
   lockEligible,
   resolveLockWindow,
   settleAndNextHand,
@@ -27,6 +29,8 @@ export interface HotseatGame {
   /** 顶部提示（非法操作原因、操作成功反馈等） */
   notice: string | null;
   noticeTone: 'info' | 'error' | 'success';
+  /** 测试用的「手动切视角」：null = 跟随当前行动者，0~3 = 固定看某个座位 */
+  viewSeat: number | null;
 }
 
 export interface HotseatActions {
@@ -35,6 +39,7 @@ export interface HotseatActions {
   clearSelection(): void;
   playSelected(): void;
   pass(): void;
+  hint(): void;
   reveal(): void;
   skipReveal(): void;
   redeal(): void;
@@ -45,6 +50,8 @@ export interface HotseatActions {
   pickReturn(cardId: number): void;
   nextHand(): void;
   dismissNotice(): void;
+  /** 测试用：循环切换视角（自动 → 1 号位 → 2 号位 → 3 号位 → 4 号位 → 自动） */
+  cycleViewSeat(): void;
 }
 
 export type HotseatStore = HotseatGame & HotseatActions;
@@ -52,7 +59,7 @@ export type HotseatStore = HotseatGame & HotseatActions;
 function initialState(seed: number): HotseatGame {
   const rng: Rng = mulberry32(seed);
   const game = autoAdvance(createGame(rng));
-  return { game, seed, selectedCardIds: [], notice: null, noticeTone: 'info' };
+  return { game, seed, selectedCardIds: [], notice: null, noticeTone: 'info', viewSeat: null };
 }
 
 /** 包一层：引擎抛错一律转成提示，不让界面崩掉 */
@@ -129,6 +136,42 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
       const seat = getActiveSeat(game);
       if (seat === null) return apply({ notice: '现在不能过牌', noticeTone: 'error' });
       runAction(seat, { kind: 'PASS' });
+    },
+
+    /** 提示：自动选中「最小的一手合法牌」（先按张数少，再按牌面小） */
+    hint() {
+      const { game } = get();
+      const seat = getActiveSeat(game);
+      if (seat === null || game.phase !== 'PLAYING') {
+        return apply({ notice: '现在没有可提示的出牌', noticeTone: 'error' });
+      }
+      const plays = legalActions(game, seat).filter(
+        (action): action is { kind: 'PLAY'; cards: Card[] } => action.kind === 'PLAY',
+      );
+      if (plays.length === 0) {
+        return apply({ notice: '没有能压过的牌，只能选「不出」', noticeTone: 'info' });
+      }
+      const weakest = plays.sort((a, b) => {
+        if (a.cards.length !== b.cards.length) return a.cards.length - b.cards.length;
+        const maxA = a.cards.reduce((best, card) => (cmpCard(card, best) > 0 ? card : best));
+        const maxB = b.cards.reduce((best, card) => (cmpCard(card, best) > 0 ? card : best));
+        return cmpCard(maxA, maxB);
+      })[0];
+      if (weakest === undefined) return;
+      apply({ selectedCardIds: weakest.cards.map((card) => card.id), notice: null, noticeTone: 'info' });
+    },
+
+    cycleViewSeat() {
+      const order: (number | null)[] = [null, 0, 1, 2, 3];
+      const { viewSeat } = get();
+      const index = order.indexOf(viewSeat);
+      const next = order[(index + 1) % order.length] ?? null;
+      apply({
+        viewSeat: next,
+        selectedCardIds: [],
+        notice: next === null ? '视角：跟随当前行动者' : `视角：${next + 1} 号位`,
+        noticeTone: 'info',
+      });
     },
 
     reveal() {

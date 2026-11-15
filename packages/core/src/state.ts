@@ -231,6 +231,7 @@ export function createGame(
     threePhase: false,
     isFirstPlay: true,
     passesSinceLastPlay: 0,
+    trickNo: 0,
     publicCards: [],
     finishOrder: [],
     nextRankSlot: 1,
@@ -536,7 +537,7 @@ function applyPlay(state: GameState, seat: number, cards: readonly Card[]): void
 
   const player = playerAt(state, seat);
   player.hand = removeCards(player.hand, cards);
-  state.log.push({ t: 'PLAY', seat, cards: [...cards], type: pattern.type });
+  state.log.push({ t: 'PLAY', seat, cards: [...cards], type: pattern.type, trick: state.trickNo });
 
   if (player.hand.length === 0) {
     finishPlayer(state, seat);
@@ -562,6 +563,8 @@ function finishPlayer(state: GameState, seat: number): void {
   state.threePhase = false;
   state.topPattern = null;
   state.passesSinceLastPlay = 0;
+  // 顺风后由下家领出 → 进入新的一墩（UI 据此清空各家「本轮打出的牌/不出」）
+  state.trickNo += 1;
 
   if (isGameOver(state)) {
     state.phase = 'SETTLE';
@@ -576,7 +579,7 @@ function applyPass(state: GameState, seat: number): void {
   if (seat !== state.currentSeat) throw new Error('还没轮到你行动');
   if (isLeading(state)) throw new Error('领出时不能选择不要，必须出牌');
 
-  state.log.push({ t: 'PASS', seat });
+  state.log.push({ t: 'PASS', seat, trick: state.trickNo });
   state.passesSinceLastPlay += 1;
 
   const active = activeSeats(state);
@@ -592,6 +595,8 @@ function applyPass(state: GameState, seat: number): void {
     state.passesSinceLastPlay = 0;
     if (!state.threePhase) state.topPattern = null;
     state.currentSeat = leader;
+    // 新的一墩：由最后出牌者重新领出
+    state.trickNo += 1;
     return;
   }
 
@@ -830,6 +835,7 @@ export function resolveLockWindow(state: GameState, intents: readonly number[]):
   next.topSeat = null;
   next.passesSinceLastPlay = 0;
   next.isFirstPlay = true;
+  next.trickNo = 1;
 
   // 重新解析首发（resolveFirstSeat 内部已处理「原首发已锁定 → 下家」的 Q-015 口径）
   let firstSeat = resolveFirstSeat(next);

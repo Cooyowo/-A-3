@@ -1,0 +1,545 @@
+/**
+ * 葵A葵3 · M2 横屏牌面样式（poker.css）
+ *
+ * 覆盖组件：PokerCard / CardBack / CardRow（PokerCard.tsx）、HandFan.tsx、ActionStrip.tsx。
+ * 只在 PokerCard.tsx 顶部 import 一次，另外两个组件也 import（构建工具会去重）。
+ *
+ * 设计目标（用户反馈：牌太小、墨绿不好看、提示文字太杂乱）：
+ *  1. 牌要大要清晰：所有尺寸从 100dvh 推导，牌宽统一 = 牌高 × 0.71（标准扑克 2.5:3.5）。
+ *  2. 牌面纯 CSS，不用图片：白/米白底 + 圆角 + 细深色描边 + 轻内高光；
+ *     中央大点数 + 大花色竖排（两者高度之和 ≈ 牌高 50%），左上角小角标；
+ *     ♥♦ 红（#c0392b），♠♣ 近黑（#1b1b1b）。
+ *  3. 手牌叠放用「相邻牌负 margin-left」，每张露出的宽度由公式算（见第 5 节）。
+ *  4. 全文件只有 1 个动画（计时图标脉冲），不依赖 JS 定时器。
+ *
+ * 三档尺寸（页面按横屏设计，100dvh = 屏幕高度）：
+ *   手牌 .pk--hand   : --pk-h = 100dvh × 2/7     ≈ 屏幕高 28.6%
+ *   打出 .pk--played : --pk-h = 手牌高 × 0.58    （「展示牌一半多一点」）
+ *   小牌 .pk--mini   : --pk-h = 100dvh × 0.09
+ *   --pk-w = --pk-h × 0.71（同一元素的 --pk-w 会跟着最终 --pk-h 重算）
+ * 外部覆盖尺寸：改下面 :root 的 --hand-card-h / --played-card-h / --mini-card-h，
+ * 或直接给牌元素写 inline style 的 --pk-h（inline 优先级最高）。
+ */
+
+/* ====================================================================== */
+/* 0. 配色别名 + 尺寸变量（配色由 styles.css 统一定义，这里只做别名/兜底） */
+/* ====================================================================== */
+
+:root {
+  /*
+   * 新风格的全局配色（--felt-bright #2f9e63 / --wood #7a4a2b / --wood-dark #4a2a17 /
+   * --gold #f0c860 / --paper #f7f3e6）已由 styles.css 的 :root 统一定义，
+   * 这里不再重复声明同名变量，避免两份 :root 互相覆盖；
+   * 组件内用下面两个带兜底的别名，万一 styles.css 将来挪走它们也能接上。
+   */
+  --pk-gold: var(--gold, #f0c860);
+  --pk-paper: var(--paper, #f7f3e6);
+  --pk-red: #c0392b;
+  --pk-ink: #1b1b1b;
+
+  /* 三档牌高：所有牌面几何都由它们派生，改这里即可整体等比缩放 */
+  --hand-card-h: calc((100dvh * 2) / 7);
+  --played-card-h: calc(var(--hand-card-h) * 0.58);
+  --mini-card-h: calc(100dvh * 0.09);
+
+  /* 手牌底端距页面底端的距离 */
+  --hand-bottom: calc(100dvh / 14);
+}
+
+/*
+ * 竖屏兜底：横屏是主设计。竖屏时若仍按「屏高 2/7」算手牌，
+ * 13 张会大到叠成一团；这里用「屏宽 / 4.6」给手牌高加一个上限，
+ * 保证 13 张×约 0.22 屏宽 ≈ 88vw 排得下（HandFan 的叠放公式同样按 88vw 压紧）。
+ * 180° 旋转屏幕时 dvh/vw 会重算，不需要 JS 监听。
+ */
+@media (orientation: portrait) {
+  :root {
+    --hand-card-h: min(calc((100dvh * 2) / 7), calc(100vw / 4.6));
+  }
+}
+
+/* ====================================================================== */
+/* 1. 牌的公共几何：宽高全部由 --pk-h 派生                                 */
+/* ====================================================================== */
+
+.pk,
+.pk-back {
+  /* 兜底默认值（正常情况下会被下面的 .pk--hand / --played / --mini 覆盖） */
+  --pk-h: var(--mini-card-h);
+  --pk-w: calc(var(--pk-h) * 0.71);
+  box-sizing: border-box;
+  position: relative;
+  flex: none;
+  width: var(--pk-w);
+  height: var(--pk-h);
+  margin: 0;
+  padding: 0;
+  border-radius: calc(var(--pk-h) * 0.075);
+  font-family: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 三档尺寸：只换高度，宽度按 0.71 自动等比（源码顺序必须在公共几何之后） */
+.pk--hand {
+  --pk-h: var(--hand-card-h);
+}
+.pk--played {
+  --pk-h: var(--played-card-h);
+}
+.pk--mini {
+  --pk-h: var(--mini-card-h);
+}
+
+/* ====================================================================== */
+/* 2. 牌面 PokerCard：白底圆角 + 左上角标 + 中央大点数大花色               */
+/* ====================================================================== */
+
+.pk {
+  display: block;
+  overflow: hidden;
+  border: max(1px, calc(var(--pk-h) * 0.008)) solid rgba(24, 28, 24, 0.55);
+  color: var(--pk-ink);
+  text-align: left;
+  background:
+    radial-gradient(circle at 30% 12%, #ffffff 0%, rgba(255, 253, 246, 0.96) 45%, rgba(246, 240, 226, 0) 100%),
+    linear-gradient(158deg, #fffdf6 0%, #f3edde 100%);
+  /* 细描边 + 轻微内高光 + 外投影，让白牌在亮绿台面上有厚度 */
+  box-shadow:
+    0 calc(var(--pk-h) * 0.012) calc(var(--pk-h) * 0.07) rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 calc(var(--pk-h) * 0.015) 0 rgba(255, 255, 255, 0.9);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+/* 只有传了 onClick 才渲染 <button>，这里抹掉浏览器默认按钮外观（注意别写 color，会盖掉花色） */
+button.pk {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+/* 花色配色：♦(1) ♥(3) 红，♣(2) ♠(4) 近黑 */
+.pk--red {
+  color: var(--pk-red);
+}
+.pk--black {
+  color: var(--pk-ink);
+}
+
+/* 左上角小角标：点数在上、花色在下（叠放时只露这条，必须能认出牌） */
+.pk__corner {
+  position: absolute;
+  top: calc(var(--pk-h) * 0.04);
+  left: calc(var(--pk-h) * 0.045);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.pk__corner-rank {
+  font-size: calc(var(--pk-h) * 0.13);
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+.pk__corner-suit {
+  margin-top: calc(var(--pk-h) * 0.004);
+  font-size: calc(var(--pk-h) * 0.115);
+  line-height: 0.95;
+}
+
+/*
+ * mini 尺寸下角标只有 4~8px、糊成一团，而且面板里的小牌不叠放，
+ * 所以隐藏角标，让中间的大点数更干净（手牌 / 打出的牌仍然保留角标）。
+ */
+.pk--mini .pk__corner {
+  display: none;
+}
+
+/* 中央：大点数 + 大花色竖排（高度和 ≈ 0.285 + 0.234 = 0.52 牌高 ≈ 50%） */
+.pk__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.pk__rank {
+  font-size: calc(var(--pk-h) * 0.3);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.pk__suit {
+  font-size: calc(var(--pk-h) * 0.26);
+  line-height: 0.9;
+}
+
+/* 花色符号优先用「文字字形」字体，避免被系统渲染成彩色 emoji */
+.pk__suit,
+.pk__corner-suit {
+  font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', sans-serif;
+  font-variant-emoji: text;
+}
+
+/* 选中：上浮 12% 牌高 + 金色描边/光晕（抬到相邻牌上面） */
+.pk--selected {
+  z-index: 2;
+  border-color: var(--pk-gold);
+  transform: translateY(calc(var(--pk-h) * -0.12));
+  box-shadow:
+    0 0 0 max(2px, calc(var(--pk-h) * 0.018)) var(--pk-gold),
+    0 0 calc(var(--pk-h) * 0.16) rgba(240, 200, 96, 0.55),
+    0 calc(var(--pk-h) * 0.03) calc(var(--pk-h) * 0.1) rgba(0, 0, 0, 0.38);
+}
+
+/* 变暗（仍展示但弱化）与禁用（更淡且不可点） */
+.pk--dimmed {
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+.pk--disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* 只在支持 hover 的设备上做鼠标悬停浮起，触屏不会「粘住」悬停态 */
+@media (hover: hover) {
+  button.pk:not(:disabled):hover {
+    transform: translateY(calc(var(--pk-h) * -0.05));
+    box-shadow:
+      0 calc(var(--pk-h) * 0.02) calc(var(--pk-h) * 0.09) rgba(0, 0, 0, 0.34),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+      inset 0 calc(var(--pk-h) * 0.015) 0 rgba(255, 255, 255, 0.9);
+  }
+  button.pk.pk--selected:not(:disabled):hover {
+    transform: translateY(calc(var(--pk-h) * -0.14));
+  }
+}
+
+/* 键盘可达性：金色焦点环 */
+button.pk:focus-visible {
+  outline: max(2px, calc(var(--pk-h) * 0.02)) solid var(--pk-gold);
+  outline-offset: max(1px, calc(var(--pk-h) * 0.012));
+}
+
+/* ====================================================================== */
+/* 3. 牌背 CardBack：深蓝牌背 + 金色斜纹 + 中央「葵」+ 张数角标            */
+/* ====================================================================== */
+
+.pk-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  isolation: isolate;
+}
+
+/* 牌背底纹：45° 金色斜纹 + 深蓝渐变，纯 CSS 无图片 */
+.pk-back__face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: max(1px, calc(var(--pk-h) * 0.008)) solid rgba(240, 200, 96, 0.45);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(240, 200, 96, 0.18) 0 calc(var(--pk-h) * 0.03),
+      transparent calc(var(--pk-h) * 0.03) calc(var(--pk-h) * 0.065)
+    ),
+    linear-gradient(150deg, #24406e 0%, #16233d 55%, #0b1322 100%);
+  box-shadow:
+    inset 0 0 0 calc(var(--pk-h) * 0.02) rgba(240, 200, 96, 0.12),
+    0 calc(var(--pk-h) * 0.015) calc(var(--pk-h) * 0.05) rgba(0, 0, 0, 0.38);
+}
+
+/* 中央「葵」字：金色，带阴影压住底纹 */
+.pk-back__mark {
+  position: relative;
+  color: var(--pk-gold);
+  font-size: calc(var(--pk-h) * 0.42);
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.92;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* count > 1：往右下错开一层牌背，做出「一叠牌」的厚度感 */
+.pk-back--stack::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(240, 200, 96, 0.35);
+  background: linear-gradient(150deg, #1d3057, #0a1222);
+  transform: translate(calc(var(--pk-h) * 0.05), calc(var(--pk-h) * 0.045));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* 张数角标：金色小药丸，压在牌背右下角 */
+.pk-back__count {
+  position: absolute;
+  right: calc(var(--pk-h) * -0.06);
+  bottom: calc(var(--pk-h) * -0.06);
+  min-width: calc(var(--pk-h) * 0.3);
+  padding: 0 calc(var(--pk-h) * 0.06);
+  border-radius: 999px;
+  background: var(--pk-gold);
+  color: #23180a;
+  font-size: calc(var(--pk-h) * 0.2);
+  font-weight: 800;
+  line-height: 1.55;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+/* ====================================================================== */
+/* 4. 小牌行 CardRow：可换行，空数组显示 emptyText                         */
+/* ====================================================================== */
+
+.pk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(2px, 0.5dvh, 5px);
+  min-width: 0;
+  max-width: 100%;
+}
+.pk-row__empty {
+  font-size: clamp(10px, 1.6dvh, 14px);
+  line-height: 1.4;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+/* ====================================================================== */
+/* 5. 手牌 HandFan：固定底部 + 水平居中 + 负 margin 叠放                  */
+/* ====================================================================== */
+
+.hand-fan {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--hand-bottom);
+  /*
+   * 层级约定（和 table.css 对齐）：手牌 7 < 操作条 .strip-wrap 8 < .debug 20 < .overlay 40，
+   * 但同时要压过 座位 .slot 5 / 自己信息 .self-info 6 / 桌心 .center 3。
+   * 操作条固定在手牌上方，选中牌上浮 12% 时牌顶会探进操作条底部那几像素；
+   * 把手牌放在操作条下面 = 牌从按钮后面探出来，不会挡住「出牌」等按钮的点击。
+   */
+  z-index: 7;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 牌与牌之间的空白不拦点击（桌面/座位仍可点），只有牌本身可点 */
+  pointer-events: none;
+}
+
+/* 空手牌（已经出完）：不占位、不挡点击 */
+.hand-fan--empty {
+  display: none;
+}
+
+.hand-fan > .pk {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+/*
+ * 叠放公式（13 张也必须一屏看全，且左上角标要露出来）：
+ *   step       = min(0.94 × 牌宽, (88vw - 牌宽) / (张数 - 1))
+ *   marginLeft = step - 牌宽      （负值 = 向左叠到前一张上面）
+ * - 张数少时 step 取 0.94 × 牌宽 → 只叠 6%，「基本不重叠」；
+ * - 张数多时由 (88vw - 牌宽) / (张数 - 1) 压紧 → 13 张总宽正好 88vw。
+ * 张数间隔 --hand-gaps 由 HandFan.tsx 写在容器行内样式里（= 张数 - 1）：
+ * 这里只除以「一个 var」，不用「除以 calc 表达式」，兼容性更稳；
+ * 整个公式留在 CSS 里，旋转/缩放窗口时随 vw/dvh 自动重算，不需要 resize 监听。
+ * 数值示例（13 张）：
+ *   844×390  → 牌宽 79.1px，step = (742.7 - 79.1) / 12 = 55.3px（露出 55.3px）
+ *   1280×720 → 牌宽 146.1px，step = (1126.4 - 146.1) / 12 = 81.7px（露出 81.7px）
+ */
+.hand-fan > .pk + .pk {
+  /* 兜底：万一浏览器不支持下面的 min() 公式，至少压到 70% 可见、不会撑破屏幕 */
+  margin-left: calc(var(--pk-w) * -0.3);
+  margin-left: calc(
+    min(calc(var(--pk-w) * 0.94), calc((88vw - var(--pk-w)) / var(--hand-gaps))) - var(--pk-w)
+  );
+}
+
+/* ====================================================================== */
+/* 6. 出牌操作条 ActionStrip：不出 / 提示 / 剩余时间 / 出牌 / 清空          */
+/* ====================================================================== */
+
+/*
+ * 位置不在这里定：App 把它包在 .strip-wrap 里（table.css 管「摆在哪」，固定在手牌
+ * 正上方），本文件只管这一行内部的尺寸与外观。若没有 .strip-wrap，它就是普通一行
+ * flex（宽度随内容收缩，不会撑满整屏）。
+ */
+.action-strip {
+  --as-h: calc(100dvh * 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.2dvh, 16px);
+  height: var(--as-h);
+  padding: 0;
+  white-space: nowrap;
+  /* 条本身不挡点击，只有按钮可点 */
+  pointer-events: none;
+}
+.action-strip > * {
+  pointer-events: auto;
+}
+
+/* 所有按钮：药丸形、高度 9dvh、字号 1.6dvh 并夹在 12~18px */
+.as__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--as-h);
+  min-width: calc(var(--as-h) * 1.75);
+  padding: 0 calc(var(--as-h) * 0.42);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: clamp(12px, 1.6dvh, 18px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    filter 120ms ease;
+}
+.as__btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+.as__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+  filter: grayscale(0.4);
+  box-shadow: none;
+}
+.as__btn:focus-visible {
+  outline: 2px solid var(--pk-gold);
+  outline-offset: 3px;
+}
+
+/* 不出 / 提示 / 清空：浅色描边 */
+.as__btn--ghost {
+  border: max(1px, calc(var(--as-h) * 0.03)) solid rgba(247, 243, 230, 0.6);
+  background: rgba(12, 40, 26, 0.35);
+  color: var(--pk-paper);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+/* 出牌：金色实心，最显眼 */
+.as__btn--gold {
+  min-width: calc(var(--as-h) * 2.1);
+  border: max(1px, calc(var(--as-h) * 0.03)) solid rgba(255, 240, 190, 0.9);
+  background: linear-gradient(180deg, #ffe9a8 0%, var(--pk-gold) 52%, #d9a83c 100%);
+  color: #2a1c05;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 3px 12px rgba(240, 200, 96, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -2px 4px rgba(120, 80, 10, 0.25);
+}
+
+/* 剩余时间：圆形计时图标 + 数字（不显示数字时只剩图标） */
+.as__timer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--as-h) * 0.22);
+  height: var(--as-h);
+  min-width: var(--as-h);
+  padding: 0 calc(var(--as-h) * 0.28);
+  border: max(1px, calc(var(--as-h) * 0.03)) solid rgba(247, 243, 230, 0.3);
+  border-radius: 999px;
+  background: rgba(8, 30, 19, 0.42);
+  color: var(--pk-gold);
+  font-size: clamp(12px, 1.6dvh, 18px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* 纯 CSS 圆环计时图标：缺口圆环 + 圆心小点（像秒表） */
+.as__ring {
+  position: relative;
+  box-sizing: border-box;
+  width: calc(var(--as-h) * 0.62);
+  height: calc(var(--as-h) * 0.62);
+  border: calc(var(--as-h) * 0.085) solid rgba(240, 200, 96, 0.28);
+  border-top-color: var(--pk-gold);
+  border-right-color: rgba(240, 200, 96, 0.85);
+  border-radius: 50%;
+}
+.as__ring::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--as-h) * 0.1);
+  height: calc(var(--as-h) * 0.1);
+  border-radius: 50%;
+  background: var(--pk-gold);
+  transform: translate(-50%, -50%);
+}
+
+/* 倒计时进行中：圆环呼吸 + 旋转（全文件唯一的动画） */
+.as__timer--active .as__ring {
+  animation: pk-timer-pulse 1.1s ease-in-out infinite;
+  box-shadow: 0 0 calc(var(--as-h) * 0.28) rgba(240, 200, 96, 0.45);
+}
+
+@keyframes pk-timer-pulse {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(180deg) scale(1.08);
+    opacity: 0.92;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 系统开了「减少动态效果」就不要脉冲/旋转 */
+@media (prefers-reduced-motion: reduce) {
+  .as__timer--active .as__ring {
+    animation: none;
+  }
+  .pk,
+  .as__btn {
+    transition: none;
+  }
+}

@@ -1,54 +1,37 @@
 /**
- * M2 热座 · 阶段面板
+ * M2 热座 · 阶段面板（横屏紧凑版）
  *
  * 纯展示组件：只负责「把当前阶段摆给玩家看 + 把点击回调抛给上层」。
  * 不 import store、不读写 localStorage、没有任何定时器；所有状态都从 props 来。
  *
- * 交付的面板：
- *   RevealPanel       双地明牌决策（发完牌、供牌之前）
- *   SupplyPanel       供牌信息（输家交牌 / 供牌池 / 赢家回牌进度 / 回牌池）
- *   ReturnSelectPanel 赢家选回牌（要选够 required 张）
- *   ReturnPickPanel   输家从回牌池挑一张
- *   LockWindowPanel   提前锁定第三名（热座里手动「开始出牌」代替固定 5 秒）
- *   SettlePanel       结算（名次、两队分、下一局供牌与首发预告）
- *   ActionBar         底部操作条（按钮 ≥ 44px，可换行）
- *   NoticeBar         顶部提示条（错误红 / 成功绿 / 普通灰）
+ * 本轮改造（用户反馈「提示文字太多、页面杂乱」）：
+ *   ① 文案大幅精简：每块最多 1 行说明，长段落 / 规则列表全部删掉；
+ *      规则速查交给 App 里的「?」按钮，不在面板里重复。
+ *   ② 横屏适配：面板改成屏幕居中的半透明深色浮层（CSS 在 panels.css），
+ *      宽度 min(78vw, 860px)、最大高 84dvh、内部滚动；字号 clamp 适配 390~720px 高度。
+ *   ③ 牌面统一用新组件 PokerCard.tsx 的 CardRow / PokerCard，
+ *      旧的 CardView / MiniCardRow / HandView 依赖全部移除。
+ *
+ * 导出与 props 与原版完全一致（App 已按这些签名接线）：
+ *   RevealPanel / SupplyPanel / ReturnSelectPanel / ReturnPickPanel /
+ *   LockWindowPanel / SettlePanel / ActionBar / NoticeBar
  */
 
 import type { ReactElement, ReactNode } from 'react';
 import { isLandlordCard } from '@a3/core';
 import type { Card } from '@a3/core';
 
-import { CardView, MiniCardRow } from './CardView';
-import { HandView } from './HandView';
+import { CardRow, PokerCard } from './PokerCard';
 import { sortHandDesc } from '../game/selectors';
 import type { SeatStatus, SettleView, SupplyView } from '../game/selectors';
 
 import '../styles/panels.css';
 
 // ---------------------------------------------------------------------------
-// 内部小工具：把对 CardView.tsx / HandView.tsx 的依赖集中在这几个薄封装里，
-// 万一视觉组件的 props 调整，只改这里，不用动每个面板。
+// 内部小工具
 // ---------------------------------------------------------------------------
 
-/** 一行小牌；空数组时显示「无」（MiniCardRow 自带 emptyText，这里统一传一次） */
-function SmallCards(props: { cards: Card[] }): ReactElement {
-  return <MiniCardRow cards={props.cards} size="sm" emptyText="无" />;
-}
-
-/**
- * 牌池里可点的一张牌（点哪张就挑哪张）。
- * 注意：点击语义交给 CardView 自己的 onClick（它内部渲染 <button type="button">），
- * 这里绝对不能再用 <button> 包一层，否则会嵌套按钮。
- */
-function PickCard(props: {
-  card: Card;
-  onPick: (card: Card) => void;
-}): ReactElement {
-  return <CardView card={props.card} size="sm" onClick={() => props.onPick(props.card)} />;
-}
-
-/** 面板内的一块信息区（带小标题，空内容由调用方自己写「无」） */
+/** 面板内的一块信息区（标题 + 内容），供牌面板用 2×2 网格排 */
 function Block(props: { title: string; children: ReactNode }): ReactElement {
   return (
     <section className="pp-block">
@@ -58,9 +41,21 @@ function Block(props: { title: string; children: ReactNode }): ReactElement {
   );
 }
 
-/** 名次文字：1..4 → 第 N 名，未定 → 未定 */
-function rankText(rank: number | null): string {
-  return rank === null ? '未定' : `第 ${rank} 名`;
+/**
+ * 名次列的小奖牌图标：1/2/3 金/银/铜，4 为灰色数字。
+ * 只用圆形 + 数字表达，不写「第 N 名」文字。
+ */
+function RankMedal({ rank }: { rank: number }): ReactElement {
+  const level = rank >= 1 && rank <= 4 ? rank : 4;
+  return (
+    <span
+      className={`pp-rank-medal pp-rank-medal--${level}`}
+      role="img"
+      aria-label={`第 ${rank} 名`}
+    >
+      {rank}
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +64,7 @@ function rankText(rank: number | null): string {
 
 /**
  * 双地明牌决策（发完牌、供牌之前）。
- * 只有同时拿到 ♠3 和 ♠A 的人会看到这个面板，所以两段后果直接摊开讲清楚。
+ * 只亮「双地身份牌」两张 + 一行后果说明 + 两个按钮。
  */
 export function RevealPanel(props: {
   seatLabel: string;
@@ -77,50 +72,27 @@ export function RevealPanel(props: {
   onReveal: () => void;
   onSkip: () => void;
 }): ReactElement {
-  // 只把两张地主牌亮给「自己」看，其它手牌这里不展开（明牌也只公开这两张）
+  // 明牌只公开 ♠3 / ♠A 这两张，其它手牌在这里不展开
   const pair = props.hand.filter(isLandlordCard);
 
   return (
     <section className="pp-panel pp-reveal" aria-label="明牌决策">
       <header className="pp-head">
-        <p className="pp-kicker">明牌决策 · 发完牌、供牌之前</p>
+        <p className="pp-kicker">明牌决策</p>
         <h2 className="pp-title">{props.seatLabel} · 双地（1 打 3）</h2>
       </header>
 
-      {/* 手机矮屏时正文可内部滚动，两个按钮始终留在面板底部 */}
-      <div className="pp-scroll">
+      <div className="pp-reveal-body">
+        <div className="pp-pair" aria-label="双地身份牌 ♠3 和 ♠A">
+          {pair.map((card) => (
+            <PokerCard key={card.id} card={card} size="played" />
+          ))}
+        </div>
+
+        {/* 一行说清明牌的全部后果：不供牌、你首发、翻倍、不可反悔 */}
         <p className="pp-lead">
-          你同时拿到了 <strong>♠3</strong> 和 <strong>♠A</strong> —— 本局你是双地，
-          一个人打另外三家（1 打 3），他们三个都是非地主方。
+          明牌 → 不供牌、你首发、本局翻倍（6→12），<strong>不可反悔</strong>
         </p>
-
-        <div className="pp-pair">
-          <SmallCards cards={pair} />
-          <span className="pp-pair-note">这两张就是你的双地身份牌</span>
-        </div>
-
-        <div className="pp-choice">
-          <section className="pp-choice-card pp-choice-card--reveal">
-            <h3 className="pp-choice-title">明牌</h3>
-            <ul className="pp-list">
-              <li>向所有人公开 ♠3 和 ♠A（只亮这两张，别的牌不亮）</li>
-              <li>本局供牌、回牌全部作废（上一局的供牌债务不用还了）</li>
-              <li>本局由你首发（♦4 的首发权作废）</li>
-              <li>本局输赢的供牌张数翻倍（6 → 12 张）</li>
-            </ul>
-          </section>
-
-          <section className="pp-choice-card">
-            <h3 className="pp-choice-title">不明牌</h3>
-            <ul className="pp-list">
-              <li>身份不公开，正常按供牌 / 回牌流程走</li>
-              <li>首发按「上交的牌最大」或 ♦4 的持有者确定</li>
-              <li>本局输赢按正常张数供牌（不翻倍）</li>
-            </ul>
-          </section>
-        </div>
-
-        <p className="pp-warn">明牌后不可反悔，想清楚再点。</p>
       </div>
 
       <div className="pp-actions">
@@ -140,10 +112,8 @@ export function RevealPanel(props: {
 // ---------------------------------------------------------------------------
 
 /**
- * 供牌信息面板。四块：
- *   ① 各输家交出的牌（perLoser）  ② 供牌池（pool）
- *   ③ 赢家回牌进度（requiredByWinner） ④ 已交回牌（returns）+ 回牌池（returnPool）
- * 牌都是公开信息，热座里可以放心摊开给所有人看。
+ * 供牌信息面板（牌都是公开信息，热座里可以摊开给所有人看）。
+ * 四块 2×2 网格：输家交牌 / 供牌池 / 回牌进度 / 回牌池，每块只留一行规则。
  */
 export function SupplyPanel(props: { view: SupplyView; stepText: string }): ReactElement {
   const { view } = props;
@@ -156,69 +126,68 @@ export function SupplyPanel(props: { view: SupplyView; stepText: string }): Reac
       </header>
 
       <div className="pp-scroll">
-        <Block title="① 各输家交出的牌">
-          {view.perLoser.length === 0 ? (
-            <p className="pp-empty">无</p>
-          ) : (
-            <ul className="pp-rows">
-              {view.perLoser.map((item) => (
-                <li className="pp-row" key={item.seat}>
-                  <span className="pp-row-label">{item.label}</span>
-                  <SmallCards cards={item.cards} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="pp-note">输家自动交出自己手里最大的牌，♠3 和 ♠A 永远不能供。</p>
-        </Block>
+        <div className="pp-grid">
+          <Block title="输家交牌">
+            {view.perLoser.length === 0 ? (
+              <p className="pp-empty">无</p>
+            ) : (
+              <ul className="pp-rows">
+                {view.perLoser.map((item) => (
+                  <li className="pp-row" key={item.seat}>
+                    <span className="pp-row-label">{item.label}</span>
+                    <CardRow cards={item.cards} size="mini" emptyText="无" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="pp-note">自动交最大牌，♠3 / ♠A 不供</p>
+          </Block>
 
-        <Block title="② 供牌池">
-          <SmallCards cards={view.pool} />
-          <p className="pp-note">赢家按「得分高者优先、同分名次靠前优先」轮流拿走池里最大的牌。</p>
-        </Block>
+          <Block title="供牌池">
+            <CardRow cards={view.pool} size="mini" emptyText="无" />
+            <p className="pp-note">赢家得分高者优先，轮流拿最大牌</p>
+          </Block>
 
-        <Block title="③ 赢家回牌进度">
-          {view.requiredByWinner.length === 0 ? (
-            <p className="pp-empty">无</p>
-          ) : (
-            <ul className="pp-rows">
-              {view.requiredByWinner.map((item) => (
-                <li className="pp-row" key={item.seat}>
-                  <span className="pp-row-label">{item.label}</span>
-                  <span className="pp-row-value">
-                    需返还 {item.count} 张
-                    <span className={item.done ? 'pp-tag pp-tag--ok' : 'pp-tag'}>{item.done ? '已交' : '待交'}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {view.pickOrder.length > 0 && (
-            <p className="pp-note">
-              挑牌顺序（上交最大牌从大到小）：{view.pickOrder.map((item) => item.label).join(' → ')}
-            </p>
-          )}
-        </Block>
+          <Block title="回牌进度">
+            {view.requiredByWinner.length === 0 ? (
+              <p className="pp-empty">无</p>
+            ) : (
+              <ul className="pp-rows">
+                {view.requiredByWinner.map((item) => (
+                  <li className="pp-row" key={item.seat}>
+                    <span className="pp-row-label">{item.label}</span>
+                    <span className="pp-row-value">
+                      需 {item.count} 张
+                      <span className={item.done ? 'pp-tag pp-tag--ok' : 'pp-tag'}>
+                        {item.done ? '已交' : '待交'}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {view.pickOrder.length > 0 && (
+              <p className="pp-note">
+                挑牌顺序 {view.pickOrder.map((item) => item.label).join(' → ')}
+              </p>
+            )}
+          </Block>
 
-        <Block title="④ 已交回牌 / 回牌池">
-          {view.returns.length === 0 ? (
-            <p className="pp-empty">已交回牌：无</p>
-          ) : (
-            <ul className="pp-rows">
-              {view.returns.map((item) => (
-                <li className="pp-row" key={item.seat}>
-                  <span className="pp-row-label">{item.label}</span>
-                  <SmallCards cards={item.cards} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="pp-subblock">
-            <span className="pp-subblock-title">回牌池</span>
-            <SmallCards cards={view.returnPool} />
-          </div>
-          <p className="pp-note">回牌池由输家按顺序挑走，交几张就收回几张，所有人最终都是 13 张。</p>
-        </Block>
+          <Block title="回牌池">
+            {view.returns.length > 0 && (
+              <ul className="pp-rows">
+                {view.returns.map((item) => (
+                  <li className="pp-row" key={item.seat}>
+                    <span className="pp-row-label">{item.label}</span>
+                    <CardRow cards={item.cards} size="mini" emptyText="无" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <CardRow cards={view.returnPool} size="mini" emptyText="回牌池：无" />
+            <p className="pp-note">输家按上交最大牌顺序轮流挑，交几张收几张</p>
+          </Block>
+        </div>
       </div>
     </section>
   );
@@ -230,6 +199,7 @@ export function SupplyPanel(props: { view: SupplyView; stepText: string }): Reac
 
 /**
  * 赢家选回牌：必须选够 required 张，且不能选 ♠3 / ♠A。
+ * 手牌用 CardRow 逐张点击切换选中（selectedIds 命中即高亮），
  * 选不够时「确认回牌」禁用（真正的合法性校验在 store / core，这里只做提示）。
  */
 export function ReturnSelectPanel(props: {
@@ -243,34 +213,34 @@ export function ReturnSelectPanel(props: {
 }): ReactElement {
   // 只数「手牌里真的有的牌」，避免上层残留的选中项把计数弄错
   const selectedCount = props.hand.filter((card) => props.selectedIds.includes(card.id)).length;
-  const enough = selectedCount === props.required;
+  const enough = props.required > 0 && selectedCount === props.required;
 
   return (
     <section className="pp-panel pp-return-select" aria-label="选择回牌">
       <header className="pp-head">
         <p className="pp-kicker">回牌 · 赢家返还</p>
-        <h2 className="pp-title">{props.seatLabel} 请选择要返还的牌</h2>
+        <h2 className="pp-title">{props.seatLabel} 选回牌</h2>
       </header>
 
-      <p className="pp-lead">
-        你收到几张就返还几张：<strong>需要返还 {props.required} 张</strong>。♠3 和 ♠A 不能作为回牌。
-      </p>
+      <div className="pp-scroll">
+        <p className="pp-lead">
+          需返还 <strong>{props.required}</strong> 张，♠3 / ♠A 不能选
+        </p>
 
-      <p className="pp-counter" aria-live="polite">
-        已选 <strong>{selectedCount}</strong> / {props.required} 张
-      </p>
+        <p className="pp-counter" aria-live="polite">
+          已选 <strong>{selectedCount}</strong> / {props.required}
+        </p>
 
-      {selectedCount > props.required && (
-        <p className="pp-warn">选多了：请取消多选的 {selectedCount - props.required} 张。</p>
-      )}
+        {selectedCount > props.required && (
+          <p className="pp-warn">多选了 {selectedCount - props.required} 张</p>
+        )}
 
-      <div className="pp-hand-wrap">
-        {/* HandView 不会排序，父组件负责按牌面从大到小传进去 */}
-        <HandView
+        {/* CardRow 自带 flex-wrap；父组件保证 hand 已按牌面从大到小排序 */}
+        <CardRow
           cards={sortHandDesc(props.hand)}
+          size="played"
           selectedIds={props.selectedIds}
-          onToggle={props.onToggle}
-          selectable
+          onCardClick={props.onToggle}
         />
       </div>
 
@@ -284,7 +254,7 @@ export function ReturnSelectPanel(props: {
           确认回牌
         </button>
         <button type="button" className="pp-btn pp-btn-ghost" onClick={props.onAuto}>
-          自动选最小的 {props.required} 张
+          自动选最小 {props.required} 张
         </button>
       </div>
     </section>
@@ -307,24 +277,20 @@ export function ReturnPickPanel(props: {
     <section className="pp-panel pp-return-pick" aria-label="从回牌池挑牌">
       <header className="pp-head">
         <p className="pp-kicker">回牌 · 输家挑牌</p>
-        <h2 className="pp-title">{props.seatLabel} 请从回牌池挑一张</h2>
+        <h2 className="pp-title">{props.seatLabel} 挑一张</h2>
       </header>
 
-      <p className="pp-lead">
-        按上交最大牌的顺序，轮到 <strong>{props.seatLabel}</strong> 挑牌；点哪张就收回哪张。
-      </p>
-
-      {props.returnPool.length === 0 ? (
-        <p className="pp-empty">回牌池已空</p>
-      ) : (
-        <ul className="pp-pick-grid">
-          {props.returnPool.map((card) => (
-            <li className="pp-pick-item" key={card.id}>
-              <PickCard card={card} onPick={props.onPick} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="pp-scroll">
+        <div className="pp-pick-body">
+          <p className="pp-lead">按上交最大牌顺序轮流挑，点哪张就收回哪张</p>
+          <CardRow
+            cards={props.returnPool}
+            size="played"
+            emptyText="回牌池已空"
+            onCardClick={props.onPick}
+          />
+        </div>
+      </div>
     </section>
   );
 }
@@ -345,23 +311,15 @@ export function LockWindowPanel(props: {
   return (
     <section className="pp-panel pp-lock" aria-label="提前锁定窗口">
       <header className="pp-head">
-        <p className="pp-kicker">提前锁定 · 供牌/回牌之后</p>
-        <h2 className="pp-title">锁定第三名窗口</h2>
+        <p className="pp-kicker">提前锁定</p>
+        <h2 className="pp-title">锁定第三名</h2>
       </header>
 
-      {/* 正文可内部滚动，保证「开始出牌」按钮在矮屏上也点得到 */}
+      <p className="pp-lead">
+        手牌全是 4~10 → 可锁第 3 名；<strong>只有 1 人锁定才成功</strong>
+      </p>
+
       <div className="pp-scroll">
-        <p className="pp-lead">
-          发完牌并执行完供牌 / 回牌后，手牌 13 张<strong>全是 4~10</strong>（没有 J、Q、K、A、2、3）的人，
-          可以申请提前锁定第三名。
-        </p>
-
-        <ul className="pp-list pp-rules">
-          <li>只有 1 人锁定才成功：公开他的全部 13 张牌，他直接成为第 3 名并退出本局。</li>
-          <li>2 人及以上锁定 → 全部失败，谁都锁不了，本局正常开打。</li>
-          <li>锁定者的牌公开但不参与出牌；不满足条件的人看不到锁定开关。</li>
-        </ul>
-
         <ul className="pp-seats">
           {props.statuses.map((status) => (
             <li className="pp-seat-row" key={status.seat}>
@@ -381,7 +339,7 @@ export function LockWindowPanel(props: {
                   <span className="pp-switch-track" aria-hidden="true">
                     <span className="pp-switch-dot" />
                   </span>
-                  <span className="pp-switch-text">锁定第三名</span>
+                  <span className="pp-switch-text">锁定</span>
                 </button>
               ) : (
                 <span className="pp-seat-hint">不满足条件</span>
@@ -390,9 +348,7 @@ export function LockWindowPanel(props: {
           ))}
         </ul>
 
-        <p className="pp-warn">
-          线上版本固定等满 5 秒；本机热座没有倒计时——请每个人各自表态后，再点「开始出牌」。
-        </p>
+        <p className="pp-note">本机热座：各自表态后点「开始出牌」（线上固定等 5 秒）</p>
       </div>
 
       <div className="pp-actions">
@@ -409,8 +365,8 @@ export function LockWindowPanel(props: {
 // ---------------------------------------------------------------------------
 
 /**
- * 结算面板：大字胜负 + 四座位名次表 + 两队总分 + 下一局供牌/首发预告。
- * 内容可能比屏幕高，所以正文区域限定 max-height 内部滚动，按钮始终留在底部。
+ * 结算面板：大字胜负 + 四座位名次表（名次列用奖牌图标）+ 两队总分 +
+ * 下一局供牌 / 首发两行预告。内容可能比屏幕高，正文内部滚动，按钮固定底部。
  */
 export function SettlePanel(props: {
   handNo: number;
@@ -451,29 +407,41 @@ export function SettlePanel(props: {
               <th scope="col">名次</th>
               <th scope="col">座位</th>
               <th scope="col">队伍</th>
-              <th scope="col">名次分</th>
-              <th scope="col">锁定</th>
-              <th scope="col">剩余</th>
+              <th scope="col">分</th>
+              <th scope="col">剩</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.seat}>
-                <td>{rankText(row.rank)}</td>
-                <td>{row.label}</td>
+                <td>
+                  {row.rank === null ? (
+                    <span className="pp-rank-none">—</span>
+                  ) : (
+                    <RankMedal rank={row.rank} />
+                  )}
+                </td>
+                <td>
+                  {row.label}
+                  {row.locked && <span className="pp-tag pp-tag--ok">锁</span>}
+                </td>
                 <td>{row.isLandlord ? '地主方' : '非地主方'}</td>
-                <td className="pp-num">{row.score} 分</td>
-                <td>{row.locked ? '已锁定' : '—'}</td>
-                <td className="pp-num">{row.handCount} 张</td>
+                <td className="pp-num">{row.score}</td>
+                <td className="pp-num">{row.handCount}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         <div className="pp-next">
-          <p className="pp-next-title">下一局预告</p>
-          <blockquote className="pp-quote">{view.nextDebtText}</blockquote>
-          <blockquote className="pp-quote">{view.nextFirstText}</blockquote>
+          <p className="pp-next-line">
+            <span className="pp-next-label">供牌</span>
+            {view.nextDebtText}
+          </p>
+          <p className="pp-next-line">
+            <span className="pp-next-label">首发</span>
+            {view.nextFirstText}
+          </p>
         </div>
       </div>
 
@@ -491,8 +459,8 @@ export function SettlePanel(props: {
 // ---------------------------------------------------------------------------
 
 /**
- * 底部操作条：hint 显示在按钮上方的小字，按钮横向排列并允许换行（375px 下能放下 2~3 个）。
- * 用 position: sticky 贴在视口底部，避免像 fixed 那样盖住面板内容。
+ * 底部操作条：横屏 HUD，fixed 贴屏幕底部居中；hint 是按钮上方的小字。
+ * 容器 pointer-events: none，只有按钮行接收点击，不挡牌桌其它区域。
  */
 export function ActionBar(props: {
   hint?: string;

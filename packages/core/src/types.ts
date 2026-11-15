@@ -186,6 +186,14 @@ export interface GameState {
   isFirstPlay: boolean;
   /** 自最后一次出牌以来连续 PASS 的人数 */
   passesSinceLastPlay: number;
+  /**
+   * 第几墩（trick）。每局从 1 开始：
+   * - 进入 PLAYING 时置 1；
+   * - 「其余人全部不要」后由最后出牌者领出 → +1（新一墩）；
+   * - 有人打完最后一张（顺风）后由下家领出 → +1（新一墩）。
+   * UI 用它判断「每人本轮打出的牌/不出」什么时候清空。
+   */
+  trickNo: number;
 
   /** 已公开的牌 id（明牌的两张、锁定者的 13 张、供牌/回牌池） */
   publicCards: number[];
@@ -231,8 +239,8 @@ export type GameEvent =
   | { t: 'PICK_RETURN'; by: number; card: Card; auto: boolean }
   | { t: 'LOCKED'; seat: number; cards: Card[] }
   | { t: 'LOCK_FAILED'; seats: number[] }
-  | { t: 'PLAY'; seat: number; cards: Card[]; type: PatternType }
-  | { t: 'PASS'; seat: number }
+  | { t: 'PLAY'; seat: number; cards: Card[]; type: PatternType; trick: number }
+  | { t: 'PASS'; seat: number; trick: number }
   | { t: 'FINISH'; seat: number; rank: number }
   | { t: 'FIRST_SEAT'; seat: number; reason: 'REVEAL' | 'SUPPLY' | 'DIAMOND4' | 'SUCCESSOR' }
   | { t: 'SETTLE'; result: Result };

@@ -1,33 +1,74 @@
 /* ==========================================================================
    阶段面板样式（PhasePanels.tsx 专用）
-   统一前缀 .pp-*，沿用 styles.css 里的 --felt / --gold / --card-* 变量。
-   移动端优先：以 375px 竖屏为基准，向上再放宽。
+   --------------------------------------------------------------------------
+   M2 横屏改造版：
+   - 面板 = 屏幕居中的半透明深色浮层（宽度 min(78vw, 860px)，最大高 84dvh，内部滚动）
+   - 字号用 clamp + vh，适配 390px（手机横屏）~720px（电脑）高度
+   - 文案大幅精简后，每块只留一行说明
+   前缀统一 .pp-*；颜色用面板局部变量，不依赖 styles.css 里的旧墨绿变量。
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   面板外壳
+   面板外壳（自居中浮层）
    -------------------------------------------------------------------------- */
 
 .pp-panel {
+  --pp-gold: #f0c860;
+  --pp-gold-dim: rgba(240, 200, 96, 0.72);
+  --pp-paper: #f7f3e6;
+  --pp-ink: #14251b;
+  --pp-felt: #2f9e63;
+  --pp-wood: #7a4a2b;
+  --pp-danger: #e06a5f;
+  --pp-success: #7fd18a;
+
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 60;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  max-width: 560px;
-  margin-inline: auto;
-  padding: 16px;
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(18, 86, 64, 0.96), rgba(7, 37, 26, 0.98));
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
-  color: #f4f1e6;
+  gap: clamp(6px, 1.4vh, 12px);
+  width: min(78vw, 860px);
+  max-height: 84dvh;
+  overflow: hidden;
+  padding: clamp(10px, 2.4vh, 18px) clamp(12px, 2.2vw, 22px);
+  border: 1px solid rgba(240, 200, 96, 0.32);
+  border-radius: 18px;
+  background:
+    linear-gradient(168deg, rgba(30, 54, 38, 0.9) 0%, rgba(12, 27, 18, 0.94) 100%);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--pp-paper);
+  font-size: clamp(12px, 2.6vh, 14px);
+  line-height: 1.45;
   text-align: left;
 }
 
+.pp-panel strong {
+  color: var(--pp-gold);
+  font-weight: 700;
+}
+
+/* 明牌 / 选回牌 / 锁定这三类面板内容少，收窄一点更像「对话框」 */
+.pp-reveal,
+.pp-return-select,
+.pp-return-pick,
+.pp-lock {
+  width: min(78vw, 660px);
+}
+
+/* 标题区 */
 .pp-head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
 .pp-kicker {
@@ -36,67 +77,83 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: rgba(232, 196, 106, 0.85);
-  font-size: 12px;
-  letter-spacing: 0.05em;
+  color: var(--pp-gold-dim);
+  font-size: clamp(10px, 2.2vh, 12px);
+  letter-spacing: 0.08em;
 }
 
 .pp-title {
   margin: 0;
-  font-size: clamp(18px, 5.2vw, 22px);
-  line-height: 1.3;
-  color: #fffdf3;
-}
-
-.pp-lead {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.65;
-  color: rgba(244, 241, 230, 0.92);
-}
-
-.pp-panel strong {
-  color: var(--gold);
+  color: var(--pp-paper);
+  font-size: clamp(15px, 3.6vh, 20px);
   font-weight: 700;
+  line-height: 1.25;
 }
 
-/* 允许内部滚动的正文区：结算、供牌这类可能偏高的面板 */
+/* 面板正文：可能高于 84dvh，所以内部滚动，按钮固定留在面板底部 */
 .pp-scroll {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 12px;
-  max-height: 60dvh;
+  gap: clamp(6px, 1.3vh, 11px);
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
+  /* 底部多留一点，避免最后一行内容被面板底部的按钮压住 */
+  padding-bottom: clamp(8px, 2.4vh, 22px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 200, 96, 0.35) transparent;
+}
+
+/* 只留一行的关键说明（替换原先的长段落与规则列表） */
+.pp-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  padding: clamp(5px, 1.2vh, 9px) clamp(9px, 1.6vw, 14px);
+  border: 1px solid rgba(240, 200, 96, 0.2);
+  border-radius: 10px;
+  background: rgba(240, 200, 96, 0.08);
+  color: rgba(247, 243, 230, 0.92);
+  font-size: clamp(12px, 2.5vh, 14px);
+  line-height: 1.5;
 }
 
 .pp-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .pp-actions .pp-btn {
-  flex: 1 1 132px;
+  flex: 0 0 auto;
+  min-width: clamp(112px, 16vw, 168px);
 }
 
 /* --------------------------------------------------------------------------
-   通用按钮
+   通用按钮（触控目标 ≥ 44px）
    -------------------------------------------------------------------------- */
 
 .pp-btn {
   min-height: 44px;
-  padding: 10px 16px;
+  padding: 8px 18px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 11px;
   font: inherit;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: clamp(13px, 2.8vh, 15px);
+  font-weight: 700;
   line-height: 1.2;
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.05s ease, background-color 0.15s ease;
+  transition:
+    filter 0.15s ease,
+    transform 0.05s ease,
+    background-color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -105,38 +162,38 @@
 }
 
 .pp-btn:focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--pp-gold);
   outline-offset: 2px;
 }
 
 .pp-btn:disabled {
-  opacity: 0.42;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .pp-btn-primary {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--ink);
+  border-color: #ffe9a8;
+  background: linear-gradient(180deg, #ffe08a 0%, var(--pp-gold) 55%, #dca737 100%);
+  color: var(--pp-ink);
 }
 
 .pp-btn-primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.07);
 }
 
 .pp-btn-ghost {
-  background: transparent;
-  border-color: var(--card-border);
-  color: var(--gold);
+  border-color: rgba(247, 243, 230, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--pp-gold);
 }
 
 .pp-btn-ghost:hover:not(:disabled) {
-  background: rgba(232, 196, 106, 0.12);
+  background: rgba(240, 200, 96, 0.12);
 }
 
 .pp-btn-danger {
-  background: #b4392d;
-  border-color: #d8584a;
+  border-color: #e5837a;
+  background: linear-gradient(180deg, #c2493c, #a2372b);
   color: #fff;
 }
 
@@ -150,137 +207,114 @@
 
 .pp-empty {
   margin: 0;
-  color: rgba(244, 241, 230, 0.45);
-  font-size: 13px;
+  color: rgba(247, 243, 230, 0.42);
+  font-size: clamp(11px, 2.2vh, 12.5px);
 }
 
 .pp-note {
   margin: 0;
-  color: rgba(244, 241, 230, 0.55);
-  font-size: 12px;
-  line-height: 1.55;
+  color: rgba(247, 243, 230, 0.48);
+  font-size: clamp(10px, 2.1vh, 12px);
+  line-height: 1.5;
 }
 
 .pp-warn {
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid rgba(224, 107, 92, 0.35);
-  border-radius: 10px;
-  background: rgba(140, 42, 34, 0.22);
+  padding: 5px 9px;
+  border: 1px solid rgba(224, 106, 95, 0.4);
+  border-radius: 9px;
+  background: rgba(140, 42, 34, 0.24);
   color: #ffd9cf;
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-size: clamp(10px, 2.2vh, 12.5px);
+  line-height: 1.5;
 }
 
 .pp-tag {
   display: inline-block;
-  margin-left: 8px;
-  padding: 1px 8px;
-  border: 1px solid rgba(244, 241, 230, 0.25);
+  margin-left: 6px;
+  padding: 0 7px;
+  border: 1px solid rgba(247, 243, 230, 0.24);
   border-radius: 999px;
-  color: rgba(244, 241, 230, 0.8);
-  font-size: 11px;
+  color: rgba(247, 243, 230, 0.78);
+  font-size: clamp(9px, 2vh, 11px);
   font-weight: 600;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: nowrap;
 }
 
 .pp-tag--ok {
-  border-color: rgba(98, 201, 138, 0.5);
+  border-color: rgba(127, 209, 138, 0.55);
   color: #a9ecc1;
 }
 
 .pp-tag--double {
-  border-color: rgba(232, 196, 106, 0.55);
-  color: var(--gold);
-}
-
-/* 列表（规则说明 / 后果说明） */
-.pp-list {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(244, 241, 230, 0.88);
-}
-
-.pp-list li + li {
-  margin-top: 2px;
+  border-color: rgba(240, 200, 96, 0.6);
+  color: var(--pp-gold);
 }
 
 /* --------------------------------------------------------------------------
    1. 明牌决策
    -------------------------------------------------------------------------- */
 
-.pp-pair {
+.pp-reveal {
+  gap: clamp(8px, 1.8vh, 14px);
+}
+
+.pp-reveal-body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid rgba(232, 196, 106, 0.4);
+  gap: clamp(8px, 1.6vw, 14px);
+}
+
+.pp-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: clamp(5px, 1.2vh, 9px) clamp(8px, 1.4vw, 12px);
+  border: 1px solid rgba(240, 200, 96, 0.42);
   border-radius: 12px;
-  background: rgba(232, 196, 106, 0.1);
+  background: rgba(240, 200, 96, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.pp-pair-note {
-  color: rgba(244, 241, 230, 0.65);
-  font-size: 12px;
-}
-
-.pp-choice {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.pp-choice-card {
-  padding: 10px 12px;
-  border: 1px dashed rgba(244, 241, 230, 0.22);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.pp-choice-card--reveal {
-  border-color: rgba(232, 196, 106, 0.5);
-  background: rgba(232, 196, 106, 0.08);
-}
-
-.pp-choice-title {
-  margin: 0 0 6px;
-  color: var(--gold);
-  font-size: 14px;
-  font-weight: 700;
+.pp-reveal .pp-lead {
+  flex: 1 1 260px;
+  margin: 0;
 }
 
 /* --------------------------------------------------------------------------
-   2. 供牌信息
+   2. 供牌信息（四块 2×2 网格）
    -------------------------------------------------------------------------- */
+
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(6px, 1.4vh, 12px);
+}
 
 .pp-block {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(244, 241, 230, 0.08);
-}
-
-.pp-block:last-child {
-  padding-bottom: 0;
-  border-bottom: none;
+  gap: clamp(3px, 0.8vh, 6px);
+  min-width: 0;
+  padding: clamp(5px, 1.2vh, 9px) clamp(8px, 1.4vw, 12px);
+  border: 1px solid rgba(247, 243, 230, 0.08);
+  border-radius: 10px;
+  background: rgba(8, 20, 13, 0.4);
 }
 
 .pp-block-title {
   margin: 0;
-  color: var(--gold);
-  font-size: 13.5px;
-  font-weight: 600;
+  color: var(--pp-gold);
+  font-size: clamp(11px, 2.4vh, 13px);
+  font-weight: 700;
 }
 
 .pp-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: clamp(2px, 0.6vh, 5px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -291,13 +325,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: clamp(11px, 2.3vh, 13px);
 }
 
 .pp-row-label {
   flex: 0 0 auto;
-  min-width: 52px;
-  color: rgba(244, 241, 230, 0.72);
+  min-width: 44px;
+  color: rgba(247, 243, 230, 0.7);
 }
 
 .pp-row-value {
@@ -305,18 +339,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  color: rgba(244, 241, 230, 0.9);
-}
-
-.pp-subblock {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pp-subblock-title {
-  color: rgba(244, 241, 230, 0.62);
-  font-size: 12px;
+  color: rgba(247, 243, 230, 0.9);
 }
 
 /* --------------------------------------------------------------------------
@@ -325,45 +348,29 @@
 
 .pp-counter {
   margin: 0;
-  color: rgba(244, 241, 230, 0.85);
-  font-size: 14px;
-}
-
-.pp-hand-wrap {
-  width: 100%;
-  min-width: 0;
+  color: rgba(247, 243, 230, 0.86);
+  font-size: clamp(12px, 2.6vh, 14px);
+  font-weight: 600;
 }
 
 /* --------------------------------------------------------------------------
-   4. 输家挑回牌（小牌网格）
+   4. 输家挑回牌
    -------------------------------------------------------------------------- */
 
-.pp-pick-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pp-pick-item {
+.pp-pick-body {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: clamp(6px, 1.4vh, 10px);
 }
 
 /* --------------------------------------------------------------------------
    5. 提前锁定窗口
    -------------------------------------------------------------------------- */
 
-.pp-rules {
-  padding-left: 18px;
-}
-
 .pp-seats {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(4px, 1vh, 8px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -373,60 +380,62 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid rgba(244, 241, 230, 0.07);
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(247, 243, 230, 0.07);
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .pp-seat-name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgba(244, 241, 230, 0.9);
-  font-size: 14px;
-}
-
-.pp-seat-hint {
-  color: rgba(244, 241, 230, 0.45);
-  font-size: 12px;
+  color: rgba(247, 243, 230, 0.9);
+  font-size: clamp(11px, 2.4vh, 13px);
   white-space: nowrap;
 }
 
-/* 开关：真身是 <button role="switch" aria-checked>，禁用 CSS 伪装点击 */
+.pp-seat-hint {
+  color: rgba(247, 243, 230, 0.4);
+  font-size: clamp(10px, 2.1vh, 12px);
+  white-space: nowrap;
+}
+
+/* 开关：真身是 <button role="switch" aria-checked>，不用 CSS 伪装点击 */
 .pp-switch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 4px 6px 4px 4px;
+  gap: 7px;
+  min-height: 40px;
+  padding: 2px 6px 2px 2px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: rgba(244, 241, 230, 0.88);
+  color: rgba(247, 243, 230, 0.82);
   font: inherit;
-  font-size: 13px;
+  font-size: clamp(11px, 2.3vh, 13px);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .pp-switch:hover {
-  border-color: var(--card-border);
+  border-color: rgba(240, 200, 96, 0.32);
 }
 
 .pp-switch:focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--pp-gold);
   outline-offset: 2px;
 }
 
 .pp-switch-track {
   position: relative;
   flex: 0 0 auto;
-  width: 40px;
-  height: 22px;
+  width: 38px;
+  height: 21px;
   border-radius: 999px;
-  background: rgba(244, 241, 230, 0.2);
+  background: rgba(247, 243, 230, 0.18);
   transition: background-color 0.15s ease;
 }
 
@@ -434,23 +443,23 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
-  background: #f4f1e6;
+  background: #f7f3e6;
   transition: transform 0.15s ease;
 }
 
 .pp-switch[aria-checked='true'] .pp-switch-track {
-  background: var(--gold);
+  background: var(--pp-gold);
 }
 
 .pp-switch[aria-checked='true'] .pp-switch-dot {
-  transform: translateX(18px);
+  transform: translateX(17px);
 }
 
 .pp-switch[aria-checked='true'] .pp-switch-text {
-  color: var(--gold);
+  color: var(--pp-gold);
 }
 
 /* --------------------------------------------------------------------------
@@ -458,23 +467,23 @@
    -------------------------------------------------------------------------- */
 
 .pp-outcome {
-  margin: 2px 0 0;
-  color: var(--gold);
-  font-size: clamp(26px, 8.5vw, 36px);
+  margin: 0;
+  color: var(--pp-gold);
+  font-size: clamp(20px, 5.8vh, 34px);
   font-weight: 800;
-  line-height: 1.2;
-  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  line-height: 1.15;
+  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.45);
 }
 
 .pp-scoreboard {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--card-border);
+  gap: clamp(10px, 2vw, 20px);
+  padding: clamp(4px, 1.2vh, 9px) 14px;
+  border: 1px solid rgba(240, 200, 96, 0.24);
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.24);
 }
 
 .pp-score-team {
@@ -484,126 +493,184 @@
 }
 
 .pp-score-name {
-  color: rgba(244, 241, 230, 0.75);
-  font-size: 13px;
+  color: rgba(247, 243, 230, 0.72);
+  font-size: clamp(11px, 2.3vh, 13px);
 }
 
 .pp-score-value {
-  color: var(--gold);
-  font-size: 28px;
+  color: var(--pp-gold);
+  font-size: clamp(20px, 5vh, 30px);
   font-weight: 800;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .pp-score-sep {
-  color: rgba(244, 241, 230, 0.5);
-  font-size: 22px;
+  color: rgba(247, 243, 230, 0.45);
+  font-size: clamp(16px, 4vh, 22px);
 }
 
 .pp-ranks {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: clamp(11px, 2.3vh, 13px);
 }
 
 .pp-ranks th {
-  padding: 4px 4px 6px;
-  border-bottom: 1px solid rgba(232, 196, 106, 0.35);
-  color: rgba(232, 196, 106, 0.8);
+  padding: 2px 6px 4px;
+  border-bottom: 1px solid rgba(240, 200, 96, 0.32);
+  color: rgba(240, 200, 96, 0.78);
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
 }
 
 .pp-ranks td {
-  padding: 6px 4px;
-  border-bottom: 1px solid rgba(244, 241, 230, 0.08);
-  color: rgba(244, 241, 230, 0.88);
+  padding: clamp(3px, 0.9vh, 6px) 6px;
+  border-bottom: 1px solid rgba(247, 243, 230, 0.08);
+  color: rgba(247, 243, 230, 0.88);
   white-space: nowrap;
 }
 
 .pp-ranks .pp-num {
-  color: rgba(244, 241, 230, 0.7);
+  color: rgba(247, 243, 230, 0.68);
+  font-variant-numeric: tabular-nums;
 }
 
+/* 名次列的奖牌小图标（1/2/3 金银铜，4 灰）——只有数字，不写「第 N 名」 */
+.pp-rank-medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(18px, 4vh, 22px);
+  height: clamp(18px, 4vh, 22px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  color: #3a2300;
+  font-size: clamp(10px, 2.2vh, 12px);
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.pp-rank-medal--1 {
+  background: radial-gradient(circle at 32% 28%, #ffe9a3 0%, #f0c860 55%, #b9812a 100%);
+}
+
+.pp-rank-medal--2 {
+  background: radial-gradient(circle at 32% 28%, #f4f7fa 0%, #c8d0d8 55%, #8b98a5 100%);
+  color: #2c3540;
+}
+
+.pp-rank-medal--3 {
+  background: radial-gradient(circle at 32% 28%, #e8b183 0%, #c98048 55%, #8f5426 100%);
+  color: #3a1c08;
+}
+
+.pp-rank-medal--4 {
+  background: radial-gradient(circle at 32% 28%, #9aa79c 0%, #6c7b6f 55%, #455146 100%);
+  color: #eef2ec;
+}
+
+.pp-rank-none {
+  color: rgba(247, 243, 230, 0.35);
+}
+
+/* 下一局预告：只保留供牌 / 首发两行 */
 .pp-next {
   display: flex;
   flex-direction: column;
+  gap: clamp(3px, 0.8vh, 6px);
+}
+
+.pp-next-line {
+  display: flex;
   gap: 8px;
-}
-
-.pp-next-title {
   margin: 0;
-  color: rgba(232, 196, 106, 0.85);
-  font-size: 12px;
-  letter-spacing: 0.05em;
-}
-
-.pp-quote {
-  margin: 0;
-  padding: 10px 12px;
-  border-left: 3px solid var(--gold);
-  border-radius: 0 10px 10px 0;
+  padding: clamp(4px, 1vh, 7px) clamp(8px, 1.4vw, 12px);
+  border-left: 3px solid var(--pp-gold);
+  border-radius: 0 9px 9px 0;
   background: rgba(0, 0, 0, 0.22);
-  color: rgba(244, 241, 230, 0.88);
-  font-size: 13px;
-  line-height: 1.6;
+  color: rgba(247, 243, 230, 0.85);
+  font-size: clamp(11px, 2.3vh, 13px);
+  line-height: 1.5;
+}
+
+.pp-next-label {
+  flex: 0 0 auto;
+  color: var(--pp-gold-dim);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
-   7. 底部操作条（sticky，不遮挡面板内容；fixed 会盖住内部滚动区）
+   7. 底部操作条（fixed 贴屏幕底部居中，横屏游戏 HUD 风格）
    -------------------------------------------------------------------------- */
 
 .pp-actionbar {
-  position: sticky;
-  bottom: 0;
-  z-index: 30;
+  position: fixed;
+  left: 50%;
+  /* App 可覆盖 --pp-actionbar-bottom：例如出牌阶段要把操作条抬到 HandFan 上方时 */
+  bottom: var(--pp-actionbar-bottom, max(6px, env(safe-area-inset-bottom)));
+  z-index: 70;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  margin-top: auto;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(6, 37, 26, 0) 0%, rgba(6, 37, 26, 0.94) 32%, #06251a 100%);
+  align-items: center;
+  gap: 5px;
+  width: min(94vw, 720px);
+  padding: 6px 10px;
+  pointer-events: none;
 }
 
 .pp-actionbar-hint {
   margin: 0;
-  color: rgba(244, 241, 230, 0.72);
-  font-size: 12.5px;
-  line-height: 1.5;
+  padding: 2px 12px;
+  border: 1px solid rgba(240, 200, 96, 0.2);
+  border-radius: 999px;
+  background: rgba(8, 22, 14, 0.62);
+  color: rgba(247, 243, 230, 0.8);
+  font-size: clamp(11px, 2.3vh, 12.5px);
+  line-height: 1.4;
   text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .pp-actionbar-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
+  pointer-events: auto;
 }
 
 .pp-actionbar-row .pp-btn {
-  flex: 1 1 120px;
+  min-width: clamp(96px, 13vw, 150px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* --------------------------------------------------------------------------
-   8. 顶部提示条
+   8. 顶部提示条（fixed 贴屏幕顶部居中；notice 为 null 时组件不渲染）
    -------------------------------------------------------------------------- */
 
 .pp-notice {
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  position: fixed;
+  left: 50%;
+  top: max(6px, env(safe-area-inset-top));
+  z-index: 80;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 8px 8px 8px 12px;
+  width: min(92vw, 720px);
+  padding: 6px 6px 6px 12px;
   border: 1px solid transparent;
   border-radius: 12px;
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: clamp(12px, 2.5vh, 13.5px);
+  line-height: 1.45;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .pp-notice-text {
@@ -615,8 +682,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -638,50 +705,56 @@
 }
 
 .pp-notice--info {
-  border-color: var(--card-border);
-  background: rgba(16, 36, 29, 0.94);
-  color: #f4f1e6;
+  border-color: rgba(240, 200, 96, 0.32);
+  background: rgba(16, 36, 29, 0.92);
+  color: var(--pp-paper);
 }
 
 .pp-notice--error {
   border-color: #e06b5c;
-  background: rgba(90, 26, 20, 0.95);
+  background: rgba(90, 26, 20, 0.94);
   color: #ffe0da;
 }
 
 .pp-notice--success {
   border-color: #62c98a;
-  background: rgba(16, 60, 38, 0.95);
+  background: rgba(16, 60, 38, 0.94);
   color: #d8f7e2;
 }
 
 /* --------------------------------------------------------------------------
-   响应式：≥480px 时明牌两种后果并排，牌池格子略放大
+   响应式：面板比屏幕窄很多时退回单列；矮屏再压一档留白
    -------------------------------------------------------------------------- */
 
-@media (min-width: 480px) {
+@media (max-width: 640px) {
   .pp-panel {
-    padding: 20px;
+    width: min(88vw, 560px);
   }
 
-  .pp-choice {
-    grid-template-columns: 1fr 1fr;
+  .pp-reveal,
+  .pp-return-select,
+  .pp-return-pick,
+  .pp-lock {
+    width: min(88vw, 560px);
   }
 
-  .pp-pick-grid {
-    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  .pp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pp-seats {
+    grid-template-columns: 1fr;
   }
 }
 
-/* 矮屏手机：压缩面板上下留白，避免操作按钮被挤出屏幕 */
-@media (max-height: 660px) {
+@media (max-height: 430px) {
   .pp-panel {
-    gap: 9px;
-    padding: 12px;
+    gap: 6px;
+    padding: 9px 14px;
   }
 
-  .pp-scroll {
-    max-height: 52dvh;
+  .pp-switch {
+    min-height: 36px;
   }
 }
 

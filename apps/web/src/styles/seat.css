@@ -1,0 +1,328 @@
+/* ==========================================================================
+   座位小部件样式（SeatWidget.tsx 专用）
+   --------------------------------------------------------------------------
+   横屏斗地主风：圆头像 + 迷你牌背张数 + 出牌/不出/倒计时。
+   配色统一用新台面：台面亮绿 #2f9e63 / 木框 #7a4a2b / 金色 #f0c860 / 纸白 #f7f3e6。
+   seat.css 自己声明局部变量，避免和 styles.css 的主题变量改名互相影响。
+   ========================================================================== */
+
+.seat {
+  --seat-gold: #f0c860;
+  --seat-gold-soft: rgba(240, 200, 96, 0.42);
+  --seat-paper: #f7f3e6;
+  --seat-ink: #16281f;
+  --seat-felt: #2f9e63;
+  --seat-wood: #7a4a2b;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(2px, 0.6vh, 5px);
+  width: max-content;
+  max-width: 100%;
+  color: var(--seat-paper);
+  font-size: clamp(10px, 2.4vh, 12px);
+  line-height: 1.2;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 角落座位朝牌桌中心微调：左上角向右下探、右上角向左下探 */
+.seat--top-left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.seat--top-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+/* --------------------------------------------------------------------------
+   头像 + 徽标（地主右上 / 奖牌右下）
+   -------------------------------------------------------------------------- */
+
+.seat__avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  /* 给右下角奖牌留出下探空间，避免压到下面一行座位名 */
+  margin-bottom: clamp(2px, 1vh, 5px);
+}
+
+.seat__avatar {
+  display: grid;
+  place-items: center;
+  width: clamp(36px, 9.6vh, 50px);
+  height: clamp(36px, 9.6vh, 50px);
+  border-radius: 50%;
+  border: 2px solid rgba(247, 243, 230, 0.55);
+  background:
+    radial-gradient(circle at 34% 28%, #ffffff 0%, #f7f3e6 42%, #ddd3ba 78%, #c7bc9f 100%);
+  color: var(--seat-ink);
+  font-weight: 800;
+  font-size: clamp(15px, 4.2vh, 22px);
+  line-height: 1;
+  box-shadow:
+    0 3px 9px rgba(0, 0, 0, 0.48),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.14),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease,
+    filter 0.2s ease;
+}
+
+/* 轮到他：金色光圈 + 呼吸（纯 CSS 动画，无定时器） */
+.seat--active .seat__avatar {
+  border-color: var(--seat-gold);
+  animation: seat-breathe 1.6s ease-in-out infinite;
+}
+
+.seat--active .seat__name {
+  color: var(--seat-gold);
+}
+
+/* 已出完：头像压暗，但奖牌保持原亮度（奖牌不在头像内部） */
+.seat--out .seat__avatar {
+  opacity: 0.52;
+  filter: grayscale(0.35);
+}
+
+/* 地主徽标：只在身份公开的地主身上出现，非地主 / 未公开不渲染任何身份文字 */
+.seat__landlord {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  padding: 1px 6px;
+  border: 1px solid #fff3c4;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe08a 0%, #f0c860 55%, #dca737 100%);
+  color: #4a2500;
+  font-size: clamp(9px, 1.9vh, 11px);
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+/* 奖牌：金 / 银 / 铜（内联 SVG，只有数字，不写「第 N 名」） */
+.seat__medal {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: clamp(20px, 5vh, 26px);
+  height: clamp(20px, 5vh, 26px);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+
+.seat__medal svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   一行小字：座位名 + 剩余张数（迷你牌背 + 数字角标）
+   -------------------------------------------------------------------------- */
+
+.seat__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 1px 6px 1px 8px;
+  border: 1px solid rgba(247, 243, 230, 0.1);
+  border-radius: 999px;
+  background: rgba(10, 26, 17, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.seat__name {
+  font-size: clamp(10px, 2.4vh, 12px);
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition: color 0.2s ease;
+}
+
+.seat__count {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.seat__count-card {
+  /* 座位旁只放一张「小小牌」：覆盖 poker.css 的 mini 档高度，比面板里的 mini 更小 */
+  --mini-card-h: clamp(17px, 4.6vh, 24px);
+  display: inline-flex;
+}
+
+.seat__count-badge {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid rgba(255, 243, 196, 0.9);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe08a 0%, #f0c860 60%, #dca737 100%);
+  color: #3a2300;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
+/* --------------------------------------------------------------------------
+   中心区：本次打出的牌 /「不出」/ 倒计时（三者互斥，越靠下越靠近牌桌中心）
+   -------------------------------------------------------------------------- */
+
+.seat__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin-top: 1px;
+}
+
+/* 角落座位的中心区朝牌桌内部偏移，避免贴在屏幕边缘 */
+.seat--top-left .seat__center {
+  align-self: flex-start;
+  transform: translateX(clamp(4px, 1.8vw, 16px));
+}
+
+.seat--top-right .seat__center {
+  align-self: flex-end;
+  transform: translateX(clamp(-16px, -1.8vw, -4px));
+}
+
+.seat__play {
+  max-width: min(46vw, 420px);
+  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.5));
+}
+
+.seat__passed {
+  padding: 2px 10px;
+  border: 1px solid rgba(247, 243, 230, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 22, 14, 0.62);
+  color: rgba(247, 243, 230, 0.82);
+  font-size: clamp(10px, 2.4vh, 12px);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  line-height: 1.7;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* 倒计时：圆形进度环 + 秒数；active 时环旋转（纯 CSS） */
+.seat__timer {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(30px, 7.6vh, 40px);
+  height: clamp(30px, 7.6vh, 40px);
+  border-radius: 50%;
+  background: rgba(8, 22, 14, 0.62);
+  border: 1px solid var(--seat-gold-soft, rgba(240, 200, 96, 0.42));
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.seat__timer-ring {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--seat-gold, #f0c860) 0deg 250deg,
+    rgba(240, 200, 96, 0.14) 250deg 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+}
+
+.seat__timer--active .seat__timer-ring {
+  animation: seat-timer-spin 1.15s linear infinite;
+}
+
+.seat__timer-value {
+  position: relative;
+  z-index: 1;
+  color: var(--seat-gold, #f0c860);
+  font-size: clamp(13px, 3.4vh, 17px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+/* --------------------------------------------------------------------------
+   动画
+   -------------------------------------------------------------------------- */
+
+@keyframes seat-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(240, 200, 96, 0.5),
+      0 0 14px rgba(240, 200, 96, 0.4),
+      0 4px 10px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(240, 200, 96, 0.24),
+      0 0 24px rgba(240, 200, 96, 0.68),
+      0 4px 10px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@keyframes seat-timer-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   矮屏横屏（390px 高）再收紧一档，避免座位块上下拉太高
+   -------------------------------------------------------------------------- */
+
+@media (max-height: 470px) {
+  .seat {
+    gap: 2px;
+  }
+
+  .seat__info {
+    padding: 0 5px 0 7px;
+  }
+
+  .seat__landlord {
+    top: -6px;
+    right: -8px;
+  }
+
+  .seat__medal {
+    right: -4px;
+    bottom: -4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat--active .seat__avatar,
+  .seat__timer--active .seat__timer-ring {
+    animation: none;
+  }
+
+  .seat__avatar {
+    transition: none;
+  }
+}
