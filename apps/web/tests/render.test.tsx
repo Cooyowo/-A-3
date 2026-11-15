@@ -64,6 +64,24 @@ function advanceToPlaying(): void {
   }
 }
 
+function advanceToLockWindow(): void {
+  let guard = 0;
+  while (store().game.phase !== 'LOCK_WINDOW') {
+    if (++guard > 5000) throw new Error('推进不到锁定窗口');
+    const { game } = store();
+    if (game.phase === 'REVEAL') store().skipReveal();
+    else if (game.phase === 'SUPPLY') {
+      if (supplyDeadlocked(game)) store().reveal();
+      else if (game.supplyContext?.step === 'RETURN_SELECT') store().autoReturn();
+      else if (game.supplyContext?.step === 'RETURN_PICK') {
+        const card = game.supplyContext.returnPool[0];
+        if (card !== undefined) store().pickReturn(card.id);
+      } else throw new Error(`SUPPLY 意外步骤 ${game.supplyContext?.step}`);
+    } else throw new Error(`意外阶段 ${game.phase}`);
+    if (store().noticeTone === 'error') throw new Error(`store 报错：${store().notice ?? ''}`);
+  }
+}
+
 function playToSettle(): void {
   let guard = 0;
   while (store().game.phase !== 'SETTLE') {
@@ -181,6 +199,14 @@ describe('M2 横屏界面（jsdom）', () => {
     expect(store().viewSeat).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /切换视角/ }));
     expect(store().viewSeat).toBe(0);
+  });
+
+  it('供牌结束：不弹窗，桌面中间显示锁定倒计时', () => {
+    boot();
+    advanceToLockWindow();
+    renderEntered();
+
+    expect(screen.getByText('供牌结束')).toBeTruthy();
   });
 
   it('结算：出现「下一局」，点了进入下一局', () => {

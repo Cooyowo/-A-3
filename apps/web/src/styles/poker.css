@@ -44,12 +44,12 @@
   --pk-tint-pale: #fbeec4;
 
   /* 三档牌高：所有牌面几何都由它们派生，改这里即可整体等比缩放 */
-  --hand-card-h: calc((100dvh * 2) / 7);
+  --hand-card-h: calc((100dvh * 3) / 17);
   --played-card-h: calc(var(--hand-card-h) * 0.58);
   --mini-card-h: calc(100dvh * 0.09);
 
   /* 手牌底端距页面底端的距离（用户要求：1/14 屏高） */
-  --hand-bottom: calc(100dvh / 14);
+  --hand-bottom: 0px;
 
   /*
    * 两排手牌时上下两排的重叠量 = 0.38 × 牌高。
@@ -231,9 +231,8 @@ button.pk {
   pointer-events: none;
 }
 
-/* 选中：上浮 12% 牌高 + 金色描边/光晕（抬到相邻牌上面） */
+/* 选中：只向上浮起 + 金色描边/光晕；不加 z-index，避免压住右侧相邻手牌 */
 .pk--selected {
-  z-index: 2;
   border-color: var(--pk-gold);
   transform: translateY(calc(var(--pk-h) * -0.12));
   box-shadow:
@@ -459,9 +458,7 @@ button.pk:focus-visible {
  * 不需要 App 额外传 class、不需要 JS 测量；浏览器不支持 :has() 时整条规则被忽略，
  * 退化回「上排顶部略微藏在按钮后面」，牌本身仍然可点。
  */
-body:has(.hand-fan--2rows) .strip-wrap {
-  bottom: calc(100dvh / 14 + (100dvh * 2) / 7 * 1.62 + 4dvh);
-}
+/* 手牌改成单排（用户 2026-11-16 要求），不再需要两排时的抬高规则 */
 
 /* ====================================================================== */
 /* 6. 出牌操作条 ActionStrip：不出 / 提示 / 剩余时间 / 出牌 / 清空          */

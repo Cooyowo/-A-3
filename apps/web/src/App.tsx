@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { validatePlay } from '@a3/core';
+import { lockEligible, validatePlay } from '@a3/core';
 import type { Card } from '@a3/core';
 
 import { ActionStrip } from './components/ActionStrip';
 import { HandFan } from './components/HandFan';
 import { CardRow } from './components/PokerCard';
 import { Scene } from './components/Scene';
-import { LockWindowPanel, SettlePanel } from './components/PhasePanels';
+import { SettlePanel } from './components/PhasePanels';
 import { SeatWidget } from './components/SeatWidget';
 import {
   cardsByIds,
@@ -33,6 +33,7 @@ import { supplyDeadlocked, useHotseatStore } from './game/store';
 import { useCountdown } from './game/useCountdown';
 import './styles/table.css';
 import './styles/flow.css';
+import './styles/layout-v3.css';
 
 /** 时长（用户确认用默认这套） */
 const T = {
@@ -42,6 +43,7 @@ const T = {
   reveal: 4000, // 明牌决策（与供牌倒计时同步）
   returnSelect: 20000, // 赢家回牌
   returnPick: 15000, // 每位供牌方挑回牌
+  lock: 5000, // 供牌结束后的锁定窗口（等几秒自动进入游戏）
   turn: 30000, // 出牌回合（仅展示）
   autoPickStep: 350, // 双地明牌输：整批转移的每张间隔
 };
@@ -120,6 +122,10 @@ export default function App() {
   const pickRemaining = useCountdown(pickKey, Math.round(T.returnPick / 1000));
   const revealKey = `${game.handNo}-reveal`;
   const revealRemaining = useCountdown(revealKey, Math.round(T.reveal / 1000));
+  const lockKey = `${game.handNo}-lock`;
+  const lockRemaining = useCountdown(lockKey, Math.round(T.lock / 1000));
+  const selfLockEligible = game.phase === 'LOCK_WINDOW' && lockEligible(game, selfSeat);
+  const selfLockIntent = game.lockIntents.get(selfSeat) === true;
 
   const playCheck = useMemo(() => {
     if (!isSelfTurn || activeSeat === null) return { ok: false, reason: '' };
@@ -127,7 +133,7 @@ export default function App() {
     return validatePlay(game, activeSeat, cardsByIds(game, selectedIds));
   }, [game, activeSeat, selectedIds, isSelfTurn]);
 
-  const selfAction = getSeatTrickAction(game, selfSeat);
+  const selfAction = isSelfTurn ? null : getSeatTrickAction(game, selfSeat);
   const selfStatus = statuses.find((status) => status.seat === selfSeat);
 
   // ---------------------------------------------------------------- 逐阶段流程
@@ -156,6 +162,13 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.handNo, game.phase, game.supplyContext?.step]);
+
+  // 供牌结束后：不再主动弹锁定窗口，给几秒倒计时，符合条件的人可在这段时间点手牌上方的「提前锁定」
+  useEffect(() => {
+    if (!entered || game.phase !== 'LOCK_WINDOW') return;
+    const timer = setTimeout(() => finishLockWindow(), T.lock);
+    return () => clearTimeout(timer);
+  }, [entered, game.phase, game.handNo, finishLockWindow]);
 
   // 明牌决策倒计时：超时视为不明牌（Q-001）
   useEffect(() => {
@@ -218,8 +231,9 @@ export default function App() {
 
   const renderOpponent = (seat: number, slot: 'top' | 'top-left' | 'top-right') => {
     const status = statuses.find((item) => item.seat === seat);
-    const action = getSeatTrickAction(game, seat);
     const isActive = activeSeat === seat;
+    // 用户 2026-11-16：轮到某人行动时，他之前打出的牌/「不出」先隐去，等他打出新的牌再显示
+    const action = isActive ? null : getSeatTrickAction(game, seat);
     const countdown = isActive && turnRemaining <= 10 ? turnRemaining : null;
     const supplyFromLoser =
       plannedSupply?.losers.find((row) => row.seat === seat)?.cards ??
@@ -243,11 +257,6 @@ export default function App() {
           <div className={`supply-out supply-out--${slot}`}>
             <CardRow cards={supplyFromLoser} size="played" tintedIds={supplyFromLoser.map((card) => card.id)} />
           </div>
-        )}
-        {pickState !== null && pickState.picker === seat && !pickState.autoMode && (
-          <button type="button" className={`pick-btn pick-btn--${slot}`} onClick={confirmPickReturn}>
-            选这张 {pickRemaining}s
-          </button>
         )}
       </div>
     );
@@ -349,6 +358,19 @@ export default function App() {
               </div>
             )}
 
+            {/* 供牌结束 → 等待几秒进入游戏（锁定窗口用倒计时，不弹窗） */}
+            {game.phase === 'LOCK_WINDOW' && (
+              <div className="center-card">
+                <p className="center-card__title">供牌结束</p>
+                <p className="center-card__line">
+                  {selfLockEligible
+                    ? '你手牌全是 4~10，可点手牌上方的「提前锁定第三名」'
+                    : '符合条件的人正在决定是否锁定第三名'}
+                </p>
+                <div className="center-card__timer">{lockRemaining}s</div>
+              </div>
+            )}
+
             {/* 挑回牌：回牌摆在桌面中间 */}
             {pickState !== null && (
               <div className="pick-zone">
@@ -441,46 +463,61 @@ export default function App() {
             </>
           )}
 
-          {/* 回牌阶段：赢家手牌（14/15 张，供来的牌标色）+ 回牌按钮 */}
-          {returnSelect !== null && game.phase === 'SUPPLY' && (
-            <>
-              <div className="strip-wrap">
-                <div className="return-actions">
-                  <span className="return-actions__count">
-                    已选 {selectedIds.length} / {returnSelect.required}
-                  </span>
-                  <span className="return-actions__timer">{returnRemaining}s</span>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={selectedIds.length !== returnSelect.required}
-                    onClick={submitReturnSelected}
-                  >
-                    回牌
-                  </button>
-                  <button type="button" className="btn-ghost" onClick={autoReturn}>
-                    自动选最小
-                  </button>
+          {/* 回牌阶段：赢家手牌（14/15 张，供来的牌标色）+ 回牌按钮；切视角时显示对应玩家的牌 */}
+          {returnSelect !== null && game.phase === 'SUPPLY' && (() => {
+            const displaySeat = viewSeat ?? returnSelect.winner;
+            const isActor = displaySeat === returnSelect.winner;
+            const displayHand = sortHandDesc(game.players[displaySeat]?.hand ?? []);
+            return (
+              <>
+                <div className="strip-wrap">
+                  <div className="return-actions">
+                    {isActor ? (
+                      <>
+                        <span className="return-actions__count">
+                          已选 {selectedIds.length} / {returnSelect.required}
+                        </span>
+                        <span className="return-actions__timer">{returnRemaining}s</span>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={selectedIds.length !== returnSelect.required}
+                          onClick={submitReturnSelected}
+                        >
+                          回牌
+                        </button>
+                        <button type="button" className="btn-ghost" onClick={autoReturn}>
+                          自动选最小
+                        </button>
+                      </>
+                    ) : (
+                      <span className="return-actions__count">
+                        {getSeatLabel(displaySeat)} 的手牌（只读视角，正在回牌的是 {returnSelect.label}）
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <HandFan
-                cards={sortHandDesc(game.players[returnSelect.winner]?.hand ?? [])}
-                selectedIds={selectedIds}
-                tintedIds={gainedIds}
-                onToggle={(card) => {
-                  if (card.rank === 16 && card.suit === 4) {
-                    useHotseatStore.setState({ notice: '不能回 ♠3', noticeTone: 'error' });
-                    return;
-                  }
-                  if (card.rank === 14 && card.suit === 4) {
-                    useHotseatStore.setState({ notice: '不能回 ♠A', noticeTone: 'error' });
-                    return;
-                  }
-                  toggleCard(card.id);
-                }}
-              />
-            </>
-          )}
+                <HandFan
+                  cards={displayHand}
+                  selectedIds={isActor ? selectedIds : []}
+                  tintedIds={isActor ? gainedIds : []}
+                  onToggle={(card) => {
+                    if (!isActor) return;
+                    if (card.rank === 16 && card.suit === 4) {
+                      useHotseatStore.setState({ notice: '不能回 ♠3', noticeTone: 'error' });
+                      return;
+                    }
+                    if (card.rank === 14 && card.suit === 4) {
+                      useHotseatStore.setState({ notice: '不能回 ♠A', noticeTone: 'error' });
+                      return;
+                    }
+                    toggleCard(card.id);
+                  }}
+                  disabled={!isActor}
+                />
+              </>
+            );
+          })()}
 
           {/* 其他阶段：也把自己的牌显示出来（供牌/挑选时看得到） */}
           {game.phase !== 'PLAYING' && returnSelect === null && (
@@ -493,14 +530,37 @@ export default function App() {
             />
           )}
 
-          {/* 锁定窗口 + 结算仍用浮层面板 */}
-          {game.phase === 'LOCK_WINDOW' && (
-            <div className="overlay">
-              <LockWindowPanel
-                statuses={statuses}
-                onToggle={(seat, on) => setLockIntent(seat, on)}
-                onFinish={finishLockWindow}
-              />
+          {/* 供牌结束后：不弹窗；符合条件的人在手牌上方看到「提前锁定」，其余人看中间倒计时 */}
+          {game.phase === 'LOCK_WINDOW' && selfLockEligible && (
+            <div className="strip-wrap">
+              <div className="return-actions">
+                <span className="return-actions__timer">{lockRemaining}s</span>
+                <button
+                  type="button"
+                  className={selfLockIntent ? 'btn-primary' : 'btn-ghost'}
+                  onClick={() => setLockIntent(selfSeat, !selfLockIntent)}
+                >
+                  {selfLockIntent ? '已申请锁定（点此取消）' : '提前锁定第三名'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 挑回牌：点中间一张牌高亮，再点手牌上方的「选这张」确认 */}
+          {pickState !== null && !pickState.autoMode && (
+            <div className="strip-wrap">
+              <div className="return-actions">
+                <span className="return-actions__count">{pickState.pickerLabel} 挑回牌</span>
+                <span className="return-actions__timer">{pickRemaining}s</span>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={highlightedReturnId === null}
+                  onClick={confirmPickReturn}
+                >
+                  选这张
+                </button>
+              </div>
             </div>
           )}
 

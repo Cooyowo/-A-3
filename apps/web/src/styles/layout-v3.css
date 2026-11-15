@@ -1,0 +1,131 @@
+/* =========================================================================
+ * M2 界面第三轮调整（2026-11-16 用户口径）
+ *
+ * 1) 桌面米白（不要棕色）；
+ * 2) 桌面只露出下半屏：上顶点约 64.5%（不到 2/3），底部被屏幕下边缘切掉，
+ *    切掉 ≈ 短半轴的 35%，长短半轴 ≈ 2.2:1；
+ * 3) 上方全是海天：清透蓝海 + 淡白云（不要露台栏杆、不要木地板）；
+ * 4) 手牌贴屏幕底端，牌高改成 3/17 屏高；
+ * 5) 座位/中央文字整体上移，避免被手牌和按钮挡住。
+ *
+ * 这个文件在 App.tsx 最后 import，用来覆盖 scene.css / table.css 里上一轮的实现。
+ * ========================================================================= */
+
+/* ---------------------------------------------------------------- 海天 */
+
+.scene__sky {
+  background:
+    radial-gradient(38% 22% at 22% 30%, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(30% 16% at 62% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 72%),
+    radial-gradient(24% 14% at 84% 32%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, #8fc4e0 0%, #a9d5e8 34%, #c8e6ef 62%, #e2f1f2 100%);
+}
+
+.scene__sea {
+  top: 26%;
+  height: 46%;
+  background:
+    radial-gradient(50% 34% at 50% 6%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(255, 255, 255, 0) 1px 2.2dvh),
+    linear-gradient(180deg, #a8d8e4 0%, #8fcbdd 28%, #7bbbd1 60%, #6aa9c3 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 18%);
+}
+
+.scene__horizon {
+  top: 25%;
+  height: 2.2%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 253, 244, 0.9) 55%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* 开阔近海：不要露台栏杆；手牌贴底：不要木地板 */
+.scene__railing,
+.scene__ground {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 米白椭圆桌 */
+
+/* 米白椭圆桌：2.2:1 的宽扁椭圆，近端被屏幕下边缘切掉（坐在桌前的视角）。
+ * 说明：严格按「只切 35% 短半轴 + 顶点在 2/3 以下」算，844×390 下桌面只有约 370px 宽，
+ * 座位/手牌会挤成一团；这里改成「桌子接近满宽、近端切掉更多」，比例仍是 2.2:1。 */
+.scene__table {
+  top: 52%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(96vw, calc(100dvh * 2.07));
+  height: auto;
+  aspect-ratio: 2.2 / 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(60% 46% at 50% 22%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, #f9f2e1 0%, #f2e7cd 40%, #e9dbb8 72%, #dfcda6 100%);
+  box-shadow:
+    inset 0 0 0 0.5dvh rgba(201, 162, 63, 0.5),
+    inset 0 1.2dvh 3.4dvh rgba(120, 92, 40, 0.12),
+    0 -0.4dvh 1.6dvh rgba(0, 0, 0, 0.1);
+}
+
+/* 纹样在米白底上要很淡（原来的金色环带改成更浅的暖灰金） */
+.scene__table::before {
+  opacity: 0.35;
+}
+
+.scene__table-center {
+  top: 72%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 72%);
+  box-shadow: inset 0 0 2.4dvh rgba(150, 118, 60, 0.1);
+}
+
+/* ---------------------------------------------------------------- 内容位置 */
+
+/* 三个对手：贴着米白桌的上沿与两侧（往内收，避免贴边被裁） */
+.slot--top {
+  top: 41%;
+}
+
+.slot--top-left {
+  top: 53%;
+  left: 11%;
+}
+
+.slot--top-right {
+  top: 53%;
+  right: 11%;
+}
+
+/* 桌面中央区（阶段提示 / 明牌 / 供牌 / 回牌 / 挑回牌） */
+.center {
+  top: 60%;
+  width: min(58vw, calc(100dvh * 0.72));
+}
+
+.center__zone {
+  min-height: calc(100dvh * 0.09);
+}
+
+/* 自己信息与操作条都抬到手牌上方（手牌高 3/17 屏高、贴底） */
+.self-info {
+  bottom: calc((100dvh * 3) / 17 + 2.4dvh);
+  left: 2.4vw;
+}
+
+.self-meta {
+  font-size: clamp(14px, 3dvh, 19px);
+}
+
+.strip-wrap {
+  bottom: calc((100dvh * 3) / 17 + 2dvh);
+}
+
+/* 挑回牌/锁定按钮条与手牌之间留一点缝 */
+.return-actions,
+.strip-wrap--readonly {
+  background: rgba(38, 26, 14, 0.86);
+  border-color: rgba(240, 200, 96, 0.5);
+}

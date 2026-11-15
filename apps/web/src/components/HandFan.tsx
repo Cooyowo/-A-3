@@ -43,9 +43,6 @@ export interface HandFanProps {
   disabled?: boolean;
 }
 
-/** 单排最多几张；超过就自动折成两排（14~25 张） */
-const ONE_ROW_LIMIT = 13;
-
 /** 每一排的牌数分配结果：上排 top，下排 bottom（单排时 top = 0） */
 interface RowPlan {
   topCount: number;
@@ -59,10 +56,10 @@ interface RowPlan {
  *   例：14 → 6 + 8，15 → 7 + 8，25 → 12 + 13。
  */
 function planRows(total: number): RowPlan {
-  if (total <= ONE_ROW_LIMIT) return { topCount: 0, bottomCount: total };
-  const half = Math.ceil(total / 2);
-  const topCount = Math.max(1, half - 1);
-  return { topCount, bottomCount: total - topCount };
+  // 用户 2026-11-16 决定：手牌永远单排（两排会挡住桌面中间的文字/按钮）。
+  // 张数多（供牌后 14/15/25 张）时靠叠放公式自动压紧，每张仍露出左上角点数+花色。
+  void total;
+  return { topCount: 0, bottomCount: 0 };
 }
 
 export function HandFan({
