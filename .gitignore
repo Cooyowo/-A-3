@@ -19,6 +19,15 @@ data/
 .env.local
 .env.*.local
 
+# 本机机密（GitHub token 等），绝不入库
+Github Token.txt
+*Token*.txt
+*.token
+.secrets/
+
 # 系统 / 编辑器
 .DS_Store
 Thumbs.db
+
+# GitHub Token
+GitHub Token
