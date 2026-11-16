@@ -24,7 +24,7 @@
 .scene {
   background-image: url('/bg.jpg');
   background-size: cover;
-  background-position: calc(50% - 40px) center;
+  background-position: calc(50% + 40px) center;
   background-repeat: no-repeat;
 }
 

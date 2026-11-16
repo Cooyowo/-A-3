@@ -513,3 +513,12 @@
     animation: none;
   }
 }
+
+/* 2026-11-16 去掉「不出」灰框：只留文字 */
+.seat__passed {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}

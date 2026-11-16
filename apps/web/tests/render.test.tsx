@@ -161,12 +161,13 @@ describe('M2 横屏界面（jsdom）', () => {
     expect(store().game.players[seat]?.hand.length).toBe(before - 1);
   });
 
-  it('操作条文案：不出 / 提示 / 清空 都在', () => {
+  it('操作条文案：领出时只有 提示 / 出牌 / 清空（不显示「不出」）', () => {
     boot();
     advanceToPlaying();
     renderEntered();
 
-    expect(screen.getByRole('button', { name: '不出' })).toBeTruthy();
+    // 领出时不能过牌，所以「不出」按钮直接不渲染
+    expect(screen.queryByRole('button', { name: '不出' })).toBeNull();
     expect(screen.getByRole('button', { name: '提示' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '清空' })).toBeTruthy();
   });
@@ -181,14 +182,13 @@ describe('M2 横屏界面（jsdom）', () => {
     expect(store().selectedCardIds.length).toBeGreaterThan(0);
   });
 
-  it('领出时「不出」按钮是禁用的', () => {
+  it('领出时「不出」按钮不渲染', () => {
     boot();
     advanceToPlaying();
     expect(store().game.isFirstPlay).toBe(true);
 
     renderEntered();
-    const passButton = screen.getByRole('button', { name: '不出' }) as HTMLButtonElement;
-    expect(passButton.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: '不出' })).toBeNull();
   });
 
   it('「切换视角」能切换', () => {

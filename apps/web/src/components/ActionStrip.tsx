@@ -26,6 +26,8 @@ export interface ActionStripProps {
   clearDisabled?: boolean;
   /** 手里有没有任何能出的牌：false 时隐藏「出牌」和「清空」 */
   hasPlayablePlay?: boolean;
+  /** 能不能过牌：领出时不能过牌，此时隐藏「不出」按钮 */
+  canPass?: boolean;
 }
 
 function cx(...names: (string | false | undefined)[]): string {
@@ -46,6 +48,7 @@ export function ActionStrip({
   playDisabled = false,
   clearDisabled = false,
   hasPlayablePlay = true,
+  canPass = true,
 }: ActionStripProps): ReactElement {
   const timerLabel = remainingSeconds === null ? '剩余时间' : `剩余 ${remainingSeconds} 秒`;
   const lowTime = remainingSeconds !== null && remainingSeconds <= LOW_TIME_SECONDS;
@@ -65,9 +68,11 @@ export function ActionStrip({
         )}
       </span>
 
-      <button type="button" className="as__btn as__btn--ghost" onClick={onPass} disabled={passDisabled}>
-        不出
-      </button>
+      {canPass ? (
+        <button type="button" className="as__btn as__btn--ghost" onClick={onPass} disabled={passDisabled}>
+          不出
+        </button>
+      ) : null}
       <button type="button" className="as__btn as__btn--ghost" onClick={onHint} disabled={hintDisabled}>
         提示
       </button>

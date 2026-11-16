@@ -82,7 +82,6 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('20261115');
-  const [dealing, setDealing] = useState(false);
   const [supplyStage, setSupplyStage] = useState<SupplyStage>('idle');
   const [startBanner, setStartBanner] = useState(false);
 
@@ -142,18 +141,16 @@ export default function App() {
     return legalActions(game, activeSeat).some((action) => action.kind === 'PLAY');
   }, [game, activeSeat, isSelfTurn]);
 
+  // 领出时不能过牌 → 隐藏「不出」按钮
+  const canPassLegal = useMemo(() => {
+    if (!isSelfTurn || activeSeat === null) return false;
+    return legalActions(game, activeSeat).some((action) => action.kind === 'PASS');
+  }, [game, activeSeat, isSelfTurn]);
+
   const selfAction = isSelfTurn ? null : getSeatTrickAction(game, selfSeat);
   const selfStatus = statuses.find((status) => status.seat === selfSeat);
 
   // ---------------------------------------------------------------- 逐阶段流程
-  // 发牌动画
-  useEffect(() => {
-    if (!entered) return;
-    setDealing(true);
-    const timer = setTimeout(() => setDealing(false), T.deal);
-    return () => clearTimeout(timer);
-  }, [entered, game.handNo]);
-
   // 供牌：倒计时（REVEAL 阶段）期间已经把要供的牌标色展示出来；
   // 倒计时结束、引擎执行完供牌后，直接播 0.8s 飞牌动画，然后进入回牌。
   useEffect(() => {
@@ -178,11 +175,11 @@ export default function App() {
 
   // 明牌决策倒计时：超时视为不明牌（Q-001）
   useEffect(() => {
-    if (!entered || dealing) return;
+    if (!entered) return;
     if (game.phase !== 'REVEAL') return;
     const timer = setTimeout(() => skipReveal(), T.reveal);
     return () => clearTimeout(timer);
-  }, [entered, dealing, game.phase, game.handNo, skipReveal]);
+  }, [entered, game.phase, game.handNo, skipReveal]);
 
   // 回牌倒计时：到点后自动给每个还没交牌的赢家交「最小」的牌（Q-041）；多赢家时依次快速补完
   useEffect(() => {
@@ -325,7 +322,6 @@ export default function App() {
           <div className="center">
             {game.phase === 'PLAYING' && <p className="center__turn">{getTurnLabel(game)}</p>}
             {startBanner && <p className="stage-banner">开始游戏</p>}
-            {dealing && <p className="stage-banner">发牌</p>}
 
             {/* 中央出牌区：自己打出的牌 / 不出 */}
             {game.phase === 'PLAYING' && (
@@ -423,7 +419,9 @@ export default function App() {
             <div className="self-meta">
               <span className="self-name">{getSeatLabel(selfSeat)}</span>
               <span className="self-count">{selfStatus?.handCount ?? 0} 张</span>
-              {isLandlordPublic(game, selfSeat) && <span className="self-landlord">地主</span>}
+              {isLandlordPublic(game, selfSeat) && (
+                <span className="self-landlord">{game.doubleSeat === selfSeat ? '双地' : '地主'}</span>
+              )}
               {getMedal(game, selfSeat) !== null && (
                 <span className={`self-medal self-medal--${getMedal(game, selfSeat)}`}>
                   {getMedal(game, selfSeat)}
@@ -467,11 +465,12 @@ export default function App() {
                     onHint={hint}
                     onPlay={playSelected}
                     onClear={clearSelection}
-                    passDisabled={game.isFirstPlay}
+                    passDisabled={!canPassLegal}
                     hintDisabled={false}
                     playDisabled={!playCheck.ok}
                     clearDisabled={selectedIds.length === 0}
                     hasPlayablePlay={hasPlayablePlay}
+                    canPass={canPassLegal}
                   />
                 ) : null}
               </div>
@@ -522,6 +521,14 @@ export default function App() {
                     }
                     if (card.rank === 14 && card.suit === 4) {
                       useHotseatStore.setState({ notice: '不能回 ♠A', noticeTone: 'error' });
+                      return;
+                    }
+                    const required = returnDisplayRow?.required ?? 0;
+                    if (!selectedIds.includes(card.id) && selectedIds.length >= required) {
+                      useHotseatStore.setState({
+                        notice: `最多只能回 ${required} 张，先取消一张再选`,
+                        noticeTone: 'error',
+                      });
                       return;
                     }
                     toggleCard(card.id);
@@ -576,19 +583,6 @@ export default function App() {
           {game.phase === 'SETTLE' && settleView !== null && (
             <div className="overlay">
               <SettlePanel handNo={game.handNo} view={settleView} onNextHand={nextHand} />
-            </div>
-          )}
-
-          {/* 发牌动画层 */}
-          {dealing && (
-            <div className="deal-layer" aria-hidden="true">
-              {[0, 1, 2, 3].map((index) => (
-                <div key={index} className={`deal-layer__stack deal-layer__stack--${index}`}>
-                  {[0, 1, 2].map((card) => (
-                    <span key={card} className="deal-layer__card" style={{ animationDelay: `${index * 90 + card * 60}ms` }} />
-                  ))}
-                </div>
-              ))}
             </div>
           )}
 
