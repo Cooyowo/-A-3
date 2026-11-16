@@ -26,6 +26,7 @@ import { cardsByIds, getActiveSeat } from './selectors';
 export interface Timings {
   deal: number;
   reveal: number;
+  supplyWait: number;
   supplyMove: number;
   returnSelect: number;
   returnPick: number;
@@ -37,6 +38,7 @@ export interface Timings {
 export const DEFAULT_TIMINGS: Timings = {
   deal: 1200,
   reveal: 4000,
+  supplyWait: 4000,
   supplyMove: 800,
   returnSelect: 20000,
   returnPick: 15000,
@@ -75,6 +77,8 @@ export interface HotseatActions {
   redeal(): void;
   setLockIntent(seat: number, on: boolean): void;
   finishLockWindow(): void;
+  /** 供牌倒计时结束：确认执行供牌（引擎暂停在 CHECK 时用） */
+  confirmSupply(): void;
   submitReturnSelected(): void;
   autoReturn(): void;
   pickReturn(cardId: number): void;
@@ -98,7 +102,7 @@ export type HotseatStore = HotseatGame & HotseatActions;
 
 function initialState(seed: number, session = 0, timings: Timings = DEFAULT_TIMINGS): HotseatGame {
   const rng: Rng = mulberry32(seed);
-  const game = autoAdvance(createGame(rng));
+  const game = autoAdvance(createGame(rng, { pauseSupply: true }));
   return {
     game,
     seed,
@@ -386,12 +390,24 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
       runAction(picker, { kind: 'PICK_RETURN', card: target });
     },
 
+    /** 供牌倒计时结束：确认执行供牌 */
+    confirmSupply() {
+      const { game } = get();
+      if (game.phase !== 'SUPPLY' || !game.supplyPaused) return;
+      try {
+        const next = autoAdvance(applyAction(game, 0, { kind: 'CONFIRM_SUPPLY' }));
+        apply({ game: next });
+      } catch (error) {
+        apply({ notice: error instanceof Error ? error.message : String(error), noticeTone: 'error' });
+      }
+    },
+
     nextHand() {
       const { game, seed } = get();
       if (game.phase !== 'SETTLE') return apply({ notice: '本局还没结束', noticeTone: 'error' });
       try {
         const rng = mulberry32(seed + game.handNo * 7919 + 13);
-        const next = autoAdvance(settleAndNextHand(game, rng));
+        const next = autoAdvance(settleAndNextHand(game, rng, { pauseSupply: true }));
         apply({ game: next, selectedCardIds: [], notice: null, noticeTone: 'info' });
       } catch (error) {
         apply({ notice: error instanceof Error ? error.message : String(error), noticeTone: 'error' });

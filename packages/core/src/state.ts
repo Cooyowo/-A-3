@@ -200,7 +200,7 @@ export function cloneState(state: GameState): GameState {
  */
 export function createGame(
   rng: Rng,
-  options?: { pendingDebt?: GameState['pendingDebt']; handNo?: number },
+  options?: { pendingDebt?: GameState['pendingDebt']; handNo?: number; pauseSupply?: boolean },
 ): GameState {
   const handNo = options?.handNo ?? 1;
   const pendingDebt = cloneDebt(options?.pendingDebt ?? null);
@@ -239,6 +239,8 @@ export function createGame(
     nextRankSlot: 1,
     rankTaken: [false, false, false, false, false],
     redealCount: 0,
+    supplyPauseRequested: options?.pauseSupply === true,
+    supplyPaused: false,
     supplyGainedIds: [],
     lockIntents: new Map<number, boolean>(),
     result: null,
@@ -402,6 +404,13 @@ export function autoAdvance(state: GameState): GameState {
               // 12 张供不出：等待 REVEAL / REDEAL 二选一（Q-008 / Q-096）
               break;
             }
+            // UI 要求「先让玩家看几秒倒计时，再真正收供牌」：停在这里等 CONFIRM_SUPPLY
+            if (next.supplyPauseRequested && !next.supplyPaused) {
+              next.supplyPaused = true;
+              changed = true;
+              break;
+            }
+            if (next.supplyPaused) break; // 已暂停，等确认
             context.step = 'COLLECT';
             changed = true;
             break;
@@ -641,6 +650,16 @@ export function applyAction(
   }
 
   const next = cloneState(state);
+
+  // UI 专用：供牌倒计时结束后的确认（引擎默认不会停在这里，只有 pauseSupply 才需要）
+  if (action.kind === 'CONFIRM_SUPPLY') {
+    if (next.phase !== 'SUPPLY' || !next.supplyPaused) {
+      throw new Error('当前不需要确认供牌');
+    }
+    next.supplyPaused = false;
+    next.supplyPauseRequested = false;
+    return autoAdvance(next);
+  }
 
   switch (next.phase) {
     case 'REVEAL': {
@@ -885,7 +904,11 @@ export function resolveLockWindow(state: GameState, intents: readonly number[]):
  * SETTLE → 下一局：结算 → 生成 pendingDebt → handNo++ → 重新发牌进入 REVEAL/SUPPLY。
  * `result` 写入 state.result 并广播 SETTLE 事件。
  */
-export function settleAndNextHand(state: GameState, rng: Rng): GameState {
+export function settleAndNextHand(
+  state: GameState,
+  rng: Rng,
+  options?: { pauseSupply?: boolean },
+): GameState {
   if (state.phase !== 'SETTLE') throw new Error('当前不是结算阶段，不能开始下一局');
 
   const settled = cloneState(state);
@@ -895,7 +918,11 @@ export function settleAndNextHand(state: GameState, rng: Rng): GameState {
 
   const pendingDebt = buildDebt(settled, result);
 
-  const nextHand = createGame(rng, { pendingDebt, handNo: settled.handNo + 1 });
+  const nextHand = createGame(rng, {
+    pendingDebt,
+    handNo: settled.handNo + 1,
+    pauseSupply: options?.pauseSupply === true,
+  });
   // 保留上一局结果与「结算」事件：调用方/UI 可据此广播结算面板（新一局结算时会覆盖）
   nextHand.result = result;
   nextHand.log.unshift({ t: 'SETTLE', result });

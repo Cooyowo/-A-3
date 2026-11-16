@@ -212,6 +212,15 @@ export interface GameState {
   redealCount: number;
 
   /**
+   * 供牌「等待确认」：只在调用方显式要求时启用（UI 要在供牌前先给玩家看几秒倒计时）。
+   * - supplyPauseRequested = true：本局在供牌前会先停下来等 CONFIRM_SUPPLY；
+   * - supplyPaused = true：当前正停在 CHECK 步骤等确认。
+   * 默认都是 false，规则引擎/自对弈行为不变。
+   */
+  supplyPauseRequested: boolean;
+  supplyPaused: boolean;
+
+  /**
    * 本局通过「供牌」拿到的牌 id（赢家视角）。
    * 界面用它在「正式开始之前」把这些牌标成不同颜色；进入 PLAYING 时清空（复原颜色）。
    */
@@ -238,7 +247,9 @@ export type Action =
   | { kind: 'LOCK' }
   | { kind: 'UNLOCK' }
   | { kind: 'PLAY'; cards: Card[] }
-  | { kind: 'PASS' };
+  | { kind: 'PASS' }
+  /** UI 专用：供牌倒计时结束后确认执行供牌（配合 supplyPauseRequested） */
+  | { kind: 'CONFIRM_SUPPLY' };
 
 export type GameEvent =
   | { t: 'DEAL'; handNo: number }

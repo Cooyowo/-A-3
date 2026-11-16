@@ -33,6 +33,10 @@ function playOneHand(): number {
         break;
       }
       case 'SUPPLY': {
+        if (game.supplyPaused) {
+          snapshot().confirmSupply();
+          break;
+        }
         if (supplyDeadlocked(game)) {
           if (Math.random() < 0.5) snapshot().reveal();
           else snapshot().redeal();

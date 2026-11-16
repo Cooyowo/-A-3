@@ -40,6 +40,10 @@ function advanceToPlaying(): void {
         store().skipReveal();
         break;
       case 'SUPPLY': {
+        if (game.supplyPaused) {
+          store().confirmSupply();
+          break;
+        }
         if (supplyDeadlocked(game)) {
           store().reveal();
           break;

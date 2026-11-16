@@ -144,6 +144,8 @@ export function makeState(options: MakeStateOptions = {}): GameState {
     nextRankSlot: options.nextRankSlot ?? 1,
     rankTaken,
     redealCount: options.redealCount ?? 0,
+    supplyPauseRequested: false,
+    supplyPaused: false,
     supplyGainedIds: [],
     lockIntents: new Map<number, boolean>(),
     result: null,

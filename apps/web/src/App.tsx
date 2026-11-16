@@ -75,6 +75,7 @@ export default function App() {
   const confirmPickReturn = useHotseatStore((state) => state.confirmPickReturn);
   const autoPickReturn = useHotseatStore((state) => state.autoPickReturn);
   const nextHand = useHotseatStore((state) => state.nextHand);
+  const confirmSupply = useHotseatStore((state) => state.confirmSupply);
   const dismissNotice = useHotseatStore((state) => state.dismissNotice);
   const cycleViewSeat = useHotseatStore((state) => state.cycleViewSeat);
 
@@ -126,6 +127,9 @@ export default function App() {
   // 锁定窗口的倒计时：只有真的进入 LOCK_WINDOW 才开始走（否则会从开局就倒数、到这一步已经归零）
   const lockKey = `${session}-${game.handNo}-lock-${game.phase}`;
   const lockRemaining = useCountdown(lockKey, Math.round(T.lock / 1000));
+  // 供牌倒计时（引擎暂停在 CHECK，等这个倒计时结束才真正收供牌）
+  const supplyWaitKey = `${session}-${game.handNo}-supplywait`;
+  const supplyWaitRemaining = useCountdown(supplyWaitKey, Math.round(T.supplyWait / 1000));
   const selfLockEligible = game.phase === 'LOCK_WINDOW' && lockEligible(game, selfSeat);
   const selfLockIntent = game.lockIntents.get(selfSeat) === true;
 
@@ -151,6 +155,14 @@ export default function App() {
   const selfStatus = statuses.find((status) => status.seat === selfSeat);
 
   // ---------------------------------------------------------------- 逐阶段流程
+  // 供牌倒计时：引擎停在 CHECK，倒计时结束后再执行 COLLECT/DISTRIBUTE（用户 2026-11-16 口径）
+  useEffect(() => {
+    if (!entered) return;
+    if (game.phase !== 'SUPPLY' || !game.supplyPaused) return;
+    const timer = setTimeout(() => confirmSupply(), T.supplyWait);
+    return () => clearTimeout(timer);
+  }, [entered, game.phase, game.supplyPaused, game.handNo, session, T.supplyWait, confirmSupply]);
+
   // 供牌：倒计时（REVEAL 阶段）期间已经把要供的牌标色展示出来；
   // 倒计时结束、引擎执行完供牌后，直接播 0.8s 飞牌动画，然后进入回牌。
   useEffect(() => {
@@ -328,6 +340,13 @@ export default function App() {
               <div className="center__zone">
                 {selfAction?.kind === 'PLAY' && <CardRow cards={selfAction.cards} size="played" />}
                 {selfAction?.kind === 'PASS' && <span className="center__pass">不出</span>}
+              </div>
+            )}
+
+            {/* 供牌倒计时：引擎暂停在 CHECK，桌面中间只显示倒计时 */}
+            {game.phase === 'SUPPLY' && game.supplyPaused && (
+              <div className="center-card">
+                <div className="center-card__timer">{supplyWaitRemaining}</div>
               </div>
             )}
 
@@ -595,6 +614,7 @@ export default function App() {
                     [
                       ['deal', '发牌动画'],
                       ['reveal', '明牌/供牌倒计时'],
+                      ['supplyWait', '供牌倒计时'],
                       ['supplyMove', '供牌飞牌'],
                       ['returnSelect', '回牌倒计时'],
                       ['returnPick', '挑回牌倒计时'],
