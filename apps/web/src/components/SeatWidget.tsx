@@ -1,17 +1,17 @@
 /**
- * M2 横屏斗地主风 · 座位小部件
+ * M2 · 座位小部件（2026-11-16 重排版）
  *
- * 纯展示组件：圆头像 + 剩余张数迷你牌 + 出牌 / 不出 / 倒计时。
- * 不 import store、没有任何定时器；倒计时数值与是否进行中都由父组件传入，
- * 圆环的「转圈」动画完全交给 CSS（seat.css）。
+ * 纯展示组件：圆头像 + 剩余张数迷你牌 + 出牌 / 不出 / 闹钟倒计时。
+ * 不 import store、没有定时器；倒计时数值由父组件传入。
  *
- * 内部排版（从上到下，越靠下越靠近牌桌中心）：
- *   ① 头像：右上角「地主」金色徽标（仅公开地主时）、右下角金/银/铜奖牌
- *   ② 一行小字：座位名 + 小牌背（数字角标 = 剩余张数）
- *   ③ 中心区：本次打出的牌 /「不出」/ 倒计时圆环（三者互斥，优先级同左）
+ * 排版规则（用户 2026-11-16 明确）：
+ * - 出牌 /「不出」永远放在**靠牌桌中心的一侧**：
+ *     左边玩家 → 头像右边；右边玩家 → 头像左边；上方玩家 → 头像下边；
+ * - 闹钟倒计时放在**不与出牌重叠**的位置：
+ *     左边玩家 → 头像右上；右边玩家 → 头像左上；上方玩家 → 头像右边；
+ * - 「不出」与出牌同一个位置；三者（出牌 / 不出 / 闹钟）互不遮挡。
  *
- * 绝对定位由 App 负责（放哪个角由 slot 决定）；本组件只保证内部排版，
- * 并按 slot 对「中心区」做一点朝向偏移（左上向右下探、右上向左下探）。
+ * 绝对定位由 App 负责（放哪个角由 slot 决定）。
  */
 
 import type { ReactElement } from 'react';
@@ -25,28 +25,21 @@ import '../styles/seat.css';
 export type SeatSlot = 'top' | 'top-left' | 'top-right';
 
 export interface SeatWidgetProps {
-  /** 座位所在方位 */
   slot: SeatSlot;
-  /** 座位名，例如「1 号位」 */
   name: string;
-  /** 剩余手牌张数 */
   cardCount: number;
-  /** 是否轮到他行动（头像金圈 + 呼吸） */
   isActive: boolean;
-  /** 是否已公开的地主：true 才显示金色「地主」徽标，非地主 / 未公开不显示任何身份文字 */
   isLandlord: boolean;
-  /** 打完的名次：1/2/3 → 金/银/铜牌；null 不显示 */
   medal: 1 | 2 | 3 | null;
-  /** 已出完牌：头像压暗，但奖牌保持清晰 */
   out: boolean;
   /** 本次打出的牌（持久显示）；null 或空数组不显示 */
   playedCards: Card[] | null;
   /** 本次选择了「不出」 */
   passed: boolean;
-  /** 倒计时剩余秒数；null 不显示倒计时 */
+  /** 倒计时剩余秒数；null 不显示闹钟 */
   countdownSeconds: number | null;
-  /** 倒计时是否进行中（驱动圆环动画） */
-  countdownActive: boolean;
+  /** 倒计时总时长，用于环形进度（默认 30 秒） */
+  countdownTotal?: number;
 }
 
 /** 奖牌配色：金 / 银 / 铜各一套丝带、牌面、描边与数字颜色 */
@@ -58,16 +51,10 @@ const MEDAL_TONES: Readonly<
   3: { ribbon: '#7a4a2b', face: '#d98b4a', edge: '#8f5426', ink: '#3a1c08' },
 };
 
-/** 拼接 className，自动丢掉 false 项 */
 function cx(...names: (string | false)[]): string {
   return names.filter((name): name is string => typeof name === 'string' && name.length > 0).join(' ');
 }
 
-/**
- * 名次奖牌（纯内联 SVG，24×24 视窗）：
- * 两条丝带 + 一枚圆形奖牌 + 名次数字。只表达「第几名」，不出现文字。
- * 无障碍名称交给外层 SeatWidget 的 aria-label，这里对读屏器隐藏。
- */
 function MedalIcon({ rank }: { rank: 1 | 2 | 3 }): ReactElement {
   const tone = MEDAL_TONES[rank];
   return (
@@ -75,15 +62,7 @@ function MedalIcon({ rank }: { rank: 1 | 2 | 3 }): ReactElement {
       <path d="M6.2 1.8h3.2l2.6 6.2-3.4 1.3z" fill={tone.ribbon} />
       <path d="M17.8 1.8h-3.2l-2.6 6.2 3.4 1.3z" fill={tone.ribbon} opacity="0.82" />
       <circle cx="12" cy="14.6" r="7.6" fill={tone.face} stroke={tone.edge} strokeWidth="1.6" />
-      <circle
-        cx="12"
-        cy="14.6"
-        r="5.1"
-        fill="none"
-        stroke={tone.edge}
-        strokeWidth="0.7"
-        opacity="0.55"
-      />
+      <circle cx="12" cy="14.6" r="5.1" fill="none" stroke={tone.edge} strokeWidth="0.7" opacity="0.55" />
       <text
         x="12"
         y="17.9"
@@ -99,30 +78,48 @@ function MedalIcon({ rank }: { rank: 1 | 2 | 3 }): ReactElement {
   );
 }
 
-/** 倒计时：圆形进度环 + 秒数；active 时圆环旋转（CSS 动画，无 JS 定时器） */
-function CountdownRing({ seconds, active }: { seconds: number; active: boolean }): ReactElement {
+const RING_R = 15.5;
+const RING_C = 2 * Math.PI * RING_R;
+
+/**
+ * 闹钟倒计时：外圈是随时间消退的环形进度条，正中间是剩余秒数。
+ * 纯展示：进度由 remaining / total 算出来，没有动画定时器（每秒重新渲染即可）。
+ */
+export function CountdownClock({
+  remaining,
+  total,
+  size = 'md',
+}: {
+  remaining: number;
+  total: number;
+  size?: 'sm' | 'md' | 'lg';
+}): ReactElement {
+  const ratio = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+  const offset = RING_C * (1 - ratio);
   return (
-    <span
-      className={cx('seat__timer', active && 'seat__timer--active')}
-      role="timer"
-      aria-label={`倒计时 ${seconds} 秒`}
-    >
-      <span className="seat__timer-ring" aria-hidden="true" />
-      <span className="seat__timer-value" aria-hidden="true">
-        {seconds}
+    <span className={cx('clock', `clock--${size}`)} role="timer" aria-label={`剩余 ${remaining} 秒`}>
+      <svg viewBox="0 0 36 36" className="clock__svg" focusable="false" aria-hidden="true">
+        <circle cx="18" cy="18" r={RING_R} className="clock__track" />
+        <circle
+          cx="18"
+          cy="18"
+          r={RING_R}
+          className="clock__ring"
+          strokeDasharray={RING_C}
+          strokeDashoffset={offset}
+          transform="rotate(-90 18 18)"
+        />
+        {/* 小闹钟的两个「铃铛」耳朵，让它一眼能认成闹钟 */}
+        <circle cx="11.5" cy="3.6" r="2.2" className="clock__bell" />
+        <circle cx="24.5" cy="3.6" r="2.2" className="clock__bell" />
+      </svg>
+      <span className="clock__value" aria-hidden="true">
+        {remaining}
       </span>
     </span>
   );
 }
 
-/**
- * 座位小部件。
- *
- * 中心区三选一（与需求约定的优先级一致）：
- *   playedCards 非空 → 用 CardRow 持久显示他打出的牌；
- *   否则 passed → 同一位置显示「不出」；
- *   否则有 countdownSeconds → 同一位置显示倒计时。
- */
 export function SeatWidget(props: SeatWidgetProps): ReactElement {
   const {
     slot,
@@ -135,12 +132,12 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
     playedCards,
     passed,
     countdownSeconds,
-    countdownActive,
+    countdownTotal = 30,
   } = props;
 
-  // 头像里的「首字」：'1 号位' → '1'，空名字兜底 '?'
   const initial = name.trim().charAt(0) || '?';
 
+  // 出牌 / 不出：放在靠近牌桌中心的一侧（具体位置由 seat.css 按 slot 决定）
   let center: ReactElement | null = null;
   if (playedCards !== null && playedCards.length > 0) {
     center = (
@@ -150,8 +147,6 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
     );
   } else if (passed) {
     center = <span className="seat__passed">不出</span>;
-  } else if (countdownSeconds !== null) {
-    center = <CountdownRing seconds={countdownSeconds} active={countdownActive} />;
   }
 
   const ariaParts: string[] = [`${name}，剩 ${cardCount} 张`];
@@ -190,7 +185,6 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
 
       <div className="seat__info">
         <span className="seat__name">{name}</span>
-        {/* 剩余张数：一张迷你牌背 + 金色数字角标；数值与根节点 aria-label 重复，对读屏器隐藏 */}
         <span className="seat__count" aria-hidden="true">
           <span className="seat__count-card">
             <CardBack size="mini" />
@@ -200,6 +194,12 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
       </div>
 
       {center !== null ? <div className="seat__center">{center}</div> : null}
+
+      {countdownSeconds !== null ? (
+        <div className="seat__clock">
+          <CountdownClock remaining={countdownSeconds} total={countdownTotal} size="md" />
+        </div>
+      ) : null}
     </section>
   );
 }

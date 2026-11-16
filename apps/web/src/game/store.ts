@@ -16,7 +16,7 @@ import {
   settleAndNextHand,
   validatePlay,
 } from '@a3/core';
-import type { Action, Card, GameState, PlayerState, Rng } from '@a3/core';
+import type { Action, Card, GameState, Rng } from '@a3/core';
 
 import { mulberry32 } from './rng';
 import { cardsByIds, getActiveSeat } from './selectors';
@@ -248,14 +248,20 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
     },
 
     submitReturnSelected() {
-      const { game, selectedCardIds } = get();
+      const { game, selectedCardIds, viewSeat } = get();
       const context = game.supplyContext;
       if (game.phase !== 'SUPPLY' || context === null || context.step !== 'RETURN_SELECT') {
         return apply({ notice: '现在不是选择回牌的环节', noticeTone: 'error' });
       }
-      const winner = game.pendingDebt?.winners.find((seat) => !context.returns.has(seat)) ?? null;
-      if (winner === null) return apply({ notice: '找不到需要回牌的赢家', noticeTone: 'error' });
-      const required = context.perWinner.get(winner) ?? 0;
+      const winners = game.pendingDebt?.winners ?? [];
+      // 回牌是同步的：切到哪个赢家的视角，就用那个人的手牌回；否则用第一个还没交的
+      const target =
+        viewSeat !== null && winners.includes(viewSeat) && !context.returns.has(viewSeat)
+          ? viewSeat
+          : winners.find((seat) => !context.returns.has(seat)) ?? null;
+      if (target === null) return apply({ notice: '所有赢家都已经回过牌了', noticeTone: 'error' });
+
+      const required = context.perWinner.get(target) ?? 0;
       const cards = cardsByIds(game, selectedCardIds);
       if (cards.length !== required) {
         return apply({ notice: `需要选 ${required} 张回牌，当前选了 ${cards.length} 张`, noticeTone: 'error' });
@@ -263,21 +269,24 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
       if (cards.some((card) => isLandlordCard(card))) {
         return apply({ notice: '♠3 和 ♠A 不能作为回牌', noticeTone: 'error' });
       }
-      runAction(winner, { kind: 'RETURN_CARDS', cards });
+      runAction(target, { kind: 'RETURN_CARDS', cards });
     },
 
     autoReturn() {
-      const { game } = get();
+      const { game, viewSeat } = get();
       const context = game.supplyContext;
       if (game.phase !== 'SUPPLY' || context === null || context.step !== 'RETURN_SELECT') {
         return apply({ notice: '现在不是选择回牌的环节', noticeTone: 'error' });
       }
-      const winner = game.pendingDebt?.winners.find((seat) => !context.returns.has(seat)) ?? null;
-      if (winner === null) return apply({ notice: '找不到需要回牌的赢家', noticeTone: 'error' });
-      const required = context.perWinner.get(winner) ?? 0;
-      const player: PlayerState | undefined = game.players[winner];
-      const cards = defaultReturnCards(player?.hand ?? [], required);
-      runAction(winner, { kind: 'RETURN_CARDS', cards });
+      const winners = game.pendingDebt?.winners ?? [];
+      const target =
+        viewSeat !== null && winners.includes(viewSeat) && !context.returns.has(viewSeat)
+          ? viewSeat
+          : winners.find((seat) => !context.returns.has(seat)) ?? null;
+      if (target === null) return;
+      const required = context.perWinner.get(target) ?? 0;
+      const hand = game.players[target]?.hand ?? [];
+      runAction(target, { kind: 'RETURN_CARDS', cards: defaultReturnCards(hand, required) });
     },
 
     pickReturn(cardId) {

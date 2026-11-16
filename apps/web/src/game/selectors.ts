@@ -527,3 +527,42 @@ export function getSupplyStageText(game: GameState): string {
 }
 
 
+
+// ---------------------------------------------------------------------------
+// 回牌（同步）：所有赢家各自回牌，可以切视角操作任意没交牌的人
+// ---------------------------------------------------------------------------
+
+export interface ReturnSeatRow {
+  seat: number;
+  label: string;
+  /** 需要返还几张 */
+  required: number;
+  /** 是否已经交过 */
+  done: boolean;
+}
+
+export interface ReturnState {
+  seats: ReturnSeatRow[];
+  /** 已提交的回牌（公开） */
+  returned: { seat: number; label: string; cards: Card[] }[];
+}
+
+/** 回牌阶段：每个赢家各自要交几张、交没交；UI 用它决定显示谁的手牌/谁能操作 */
+export function getReturnState(game: GameState): ReturnState | null {
+  const context = game.supplyContext;
+  const debt = game.pendingDebt;
+  if (context === null || debt === null || context.step !== 'RETURN_SELECT') return null;
+  return {
+    seats: debt.winners.map((seat) => ({
+      seat,
+      label: getSeatLabel(seat),
+      required: context.perWinner.get(seat) ?? 0,
+      done: context.returns.has(seat),
+    })),
+    returned: [...context.returns.entries()].map(([seat, cards]) => ({
+      seat,
+      label: getSeatLabel(seat),
+      cards,
+    })),
+  };
+}

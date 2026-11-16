@@ -1,131 +1,212 @@
 /* =========================================================================
- * M2 界面第三轮调整（2026-11-16 用户口径）
+ * M2 界面第四轮（2026-11-16 下午，用户逐条口径）
  *
- * 1) 桌面米白（不要棕色）；
- * 2) 桌面只露出下半屏：上顶点约 64.5%（不到 2/3），底部被屏幕下边缘切掉，
- *    切掉 ≈ 短半轴的 35%，长短半轴 ≈ 2.2:1；
- * 3) 上方全是海天：清透蓝海 + 淡白云（不要露台栏杆、不要木地板）；
- * 4) 手牌贴屏幕底端，牌高改成 3/17 屏高；
- * 5) 座位/中央文字整体上移，避免被手牌和按钮挡住。
+ * 纵轴（以页面底端为 0）：
+ *   · 0 ~ 2/3 页面高度：米黄椭圆牌桌，近端被屏幕下边缘切掉约 20% 短半轴，
+ *     上顶点在 2/3 处；长短半轴 2.2:1；左右两侧不被裁切；
+ *   · 2/3 ~ 1 页面高度：海与天空（开阔近海、轻云、远景小岛与小船）。
+ * 海滩：桌面两侧与桌沿外露出沙滩，海与滩之间是自然起伏的潮线（带浪花与水痕）。
  *
- * 这个文件在 App.tsx 最后 import，用来覆盖 scene.css / table.css 里上一轮的实现。
+ * 本文件在 App.tsx 最后 import，覆盖 scene.css / table.css 前几轮实现。
  * ========================================================================= */
 
-/* ---------------------------------------------------------------- 海天 */
+/* ---------------------------------------------------------------- 天空 */
 
 .scene__sky {
   background:
-    radial-gradient(38% 22% at 22% 30%, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0) 70%),
-    radial-gradient(30% 16% at 62% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 72%),
-    radial-gradient(24% 14% at 84% 32%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 72%),
-    linear-gradient(180deg, #8fc4e0 0%, #a9d5e8 34%, #c8e6ef 62%, #e2f1f2 100%);
+    radial-gradient(36% 26% at 18% 46%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 68%),
+    radial-gradient(28% 20% at 52% 30%, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(22% 15% at 78% 50%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, #7fb8dc 0%, #9ccbe5 30%, #c3e2ee 62%, #e6f3f2 100%);
 }
 
+/* ---------------------------------------------------------------- 海（含远岛与小船） */
+
 .scene__sea {
-  top: 26%;
-  height: 46%;
+  top: 7%;
+  height: 19%;
   background:
-    radial-gradient(50% 34% at 50% 6%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%),
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(255, 255, 255, 0) 1px 2.2dvh),
-    linear-gradient(180deg, #a8d8e4 0%, #8fcbdd 28%, #7bbbd1 60%, #6aa9c3 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 18%);
+    /* 远岛：两处错落的小岛剪影 */
+    radial-gradient(9% 46% at 20% 22%, rgba(96, 122, 104, 0.55) 0%, rgba(96, 122, 104, 0) 72%),
+    radial-gradient(6% 30% at 27% 26%, rgba(96, 122, 104, 0.45) 0%, rgba(96, 122, 104, 0) 74%),
+    radial-gradient(7% 34% at 74% 20%, rgba(92, 118, 100, 0.5) 0%, rgba(92, 118, 100, 0) 74%),
+    /* 小船：一条白色小帆 */
+    radial-gradient(1.1% 26% at 62% 30%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 70%),
+    /* 水面碎波 */
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 1px, rgba(255, 255, 255, 0) 1px 2.4dvh),
+    linear-gradient(180deg, #a9d9e6 0%, #8ecadd 26%, #79b9d1 58%, #66a5c0 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%);
 }
 
 .scene__horizon {
-  top: 25%;
-  height: 2.2%;
+  top: 6.6%;
+  height: 2.4%;
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 253, 244, 0.9) 55%,
+    rgba(255, 253, 244, 0.85) 52%,
     rgba(255, 255, 255, 0) 100%
   );
 }
 
-/* 开阔近海：不要露台栏杆；手牌贴底：不要木地板 */
-.scene__railing,
-.scene__ground {
+/* 这一版不要露台栏杆 */
+.scene__railing {
   display: none;
 }
 
-/* ---------------------------------------------------------------- 米白椭圆桌 */
+/* ---------------------------------------------------------------- 海滩（沙 + 弧形潮线 + 浪花） */
 
-/* 米白椭圆桌：2.2:1 的宽扁椭圆，近端被屏幕下边缘切掉（坐在桌前的视角）。
- * 说明：严格按「只切 35% 短半轴 + 顶点在 2/3 以下」算，844×390 下桌面只有约 370px 宽，
- * 座位/手牌会挤成一团；这里改成「桌子接近满宽、近端切掉更多」，比例仍是 2.2:1。 */
+.scene__ground {
+  display: block;
+  top: 23%;
+  height: 70%;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 12%),
+    radial-gradient(120% 90% at 50% 0%, #f3e2bd 0%, #ecd6ab 34%, #e5c99a 62%, #dcc08f 100%);
+}
+
+/* 潮线：一条自然起伏的弧线（上缘是水，下缘是湿沙） */
+.scene__ground::before {
+  content: '';
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  top: -4.6dvh;
+  height: 9dvh;
+  border-radius: 50% 46% 0 0 / 100% 96% 0 0;
+  background:
+    linear-gradient(180deg, rgba(120, 176, 196, 0.75) 0%, rgba(146, 196, 212, 0.5) 34%, rgba(236, 214, 171, 0.85) 78%, rgba(236, 214, 171, 0) 100%);
+  filter: none;
+}
+
+/* 浪花与水痕：贴着潮线的白色碎点 + 一条湿润的深色反光 */
+.scene__ground::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3.2dvh;
+  height: 6.4dvh;
+  background:
+    radial-gradient(2px 1.4px at 12% 62%, rgba(255, 255, 255, 0.95) 0 60%, transparent 62%),
+    radial-gradient(2px 1.4px at 26% 46%, rgba(255, 255, 255, 0.9) 0 60%, transparent 62%),
+    radial-gradient(2px 1.4px at 41% 70%, rgba(255, 255, 255, 0.95) 0 60%, transparent 62%),
+    radial-gradient(2px 1.4px at 57% 52%, rgba(255, 255, 255, 0.9) 0 60%, transparent 62%),
+    radial-gradient(2px 1.4px at 72% 66%, rgba(255, 255, 255, 0.95) 0 60%, transparent 62%),
+    radial-gradient(2px 1.4px at 88% 48%, rgba(255, 255, 255, 0.9) 0 60%, transparent 62%),
+    linear-gradient(180deg, rgba(196, 226, 232, 0.5) 0%, rgba(196, 226, 232, 0) 46%),
+    radial-gradient(60% 42% at 50% 30%, rgba(122, 92, 48, 0.16) 0%, rgba(122, 92, 48, 0) 70%);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- 米黄椭圆桌 */
+
+/* 2.2:1、宽 = 1.63 屏高 → 高 = 0.74 屏高；顶部放在 33.3%（底端原点即 2/3 处），
+ * 底部超出屏幕 7.3%（= 短半轴的 20%），左右两侧不出屏。 */
 .scene__table {
-  top: 52%;
+  top: 33.3%;
   left: 50%;
   transform: translateX(-50%);
-  width: min(96vw, calc(100dvh * 2.07));
+  width: min(96vw, calc(100dvh * 1.63));
   height: auto;
   aspect-ratio: 2.2 / 1;
   border-radius: 50%;
   background:
-    radial-gradient(60% 46% at 50% 22%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 62%),
-    linear-gradient(180deg, #f9f2e1 0%, #f2e7cd 40%, #e9dbb8 72%, #dfcda6 100%);
+    radial-gradient(58% 44% at 50% 20%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, #f7ecc9 0%, #f2e2b6 38%, #ecd8a4 70%, #e4cd93 100%);
   box-shadow:
-    inset 0 0 0 0.5dvh rgba(201, 162, 63, 0.5),
-    inset 0 1.2dvh 3.4dvh rgba(120, 92, 40, 0.12),
-    0 -0.4dvh 1.6dvh rgba(0, 0, 0, 0.1);
+    inset 0 0 0 0.5dvh rgba(190, 148, 58, 0.45),
+    inset 0 1.2dvh 3.4dvh rgba(120, 92, 40, 0.1),
+    0 -0.4dvh 1.8dvh rgba(90, 70, 30, 0.12);
 }
 
-/* 纹样在米白底上要很淡（原来的金色环带改成更浅的暖灰金） */
 .scene__table::before {
-  opacity: 0.35;
+  opacity: 0.3;
 }
 
 .scene__table-center {
-  top: 72%;
-  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 72%);
-  box-shadow: inset 0 0 2.4dvh rgba(150, 118, 60, 0.1);
+  top: 62%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 72%);
+  box-shadow: inset 0 0 2.4dvh rgba(150, 118, 60, 0.08);
 }
 
 /* ---------------------------------------------------------------- 内容位置 */
 
-/* 三个对手：贴着米白桌的上沿与两侧（往内收，避免贴边被裁） */
+/* 三个对手：贴着桌面靠上的位置 */
 .slot--top {
-  top: 41%;
+  top: 25.5%;
 }
 
 .slot--top-left {
-  top: 53%;
-  left: 11%;
+  top: 46%;
+  left: 14%;
 }
 
 .slot--top-right {
-  top: 53%;
-  right: 11%;
+  top: 46%;
+  right: 14%;
 }
 
-/* 桌面中央区（阶段提示 / 明牌 / 供牌 / 回牌 / 挑回牌） */
+/* 桌面中央（阶段提示 / 倒计时闹钟 / 打出的牌 / 回牌池） */
 .center {
   top: 60%;
-  width: min(58vw, calc(100dvh * 0.72));
+  width: min(56vw, calc(100dvh * 0.7));
 }
 
 .center__zone {
-  min-height: calc(100dvh * 0.09);
+  min-height: calc(100dvh * 0.08);
 }
 
-/* 自己信息与操作条都抬到手牌上方（手牌高 3/17 屏高、贴底） */
+/* 文字：深色，和米黄桌面拉开对比 */
+.center__turn,
+.stage-banner {
+  color: #6a4310;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* 自己（左下）与操作条：都在手牌上方 */
 .self-info {
-  bottom: calc((100dvh * 3) / 17 + 2.4dvh);
-  left: 2.4vw;
+  bottom: calc((100dvh * 3) / 17 + 2.2dvh);
+  left: 2vw;
+  padding: 0.5dvh 1vw 0.5dvh 0.6dvh;
+  background: rgba(255, 250, 236, 0.72);
+  border-color: rgba(150, 112, 40, 0.4);
+}
+
+.self-avatar {
+  width: calc(100dvh * 0.072);
+  height: calc(100dvh * 0.072);
+  font-size: calc(100dvh * 0.036);
 }
 
 .self-meta {
-  font-size: clamp(14px, 3dvh, 19px);
+  font-size: clamp(12px, 2.6dvh, 17px);
+  color: #5a3a12;
+}
+
+.self-name {
+  color: #6a4310;
+}
+
+.self-count {
+  color: #5f4520;
 }
 
 .strip-wrap {
-  bottom: calc((100dvh * 3) / 17 + 2dvh);
+  bottom: calc((100dvh * 3) / 17 + 1.8dvh);
 }
 
-/* 挑回牌/锁定按钮条与手牌之间留一点缝 */
+/* 深色按钮条：在米黄桌面上也清楚 */
 .return-actions,
 .strip-wrap--readonly {
-  background: rgba(38, 26, 14, 0.86);
-  border-color: rgba(240, 200, 96, 0.5);
+  background: rgba(255, 250, 236, 0.86);
+  border-color: rgba(150, 112, 40, 0.42);
+  box-shadow: 0 0.4dvh 1.2dvh rgba(90, 70, 30, 0.16);
+}
+
+.return-actions__count,
+.return-actions__timer {
+  color: #5f4520;
 }

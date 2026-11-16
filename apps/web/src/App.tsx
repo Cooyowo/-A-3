@@ -5,24 +5,23 @@ import type { Card } from '@a3/core';
 
 import { ActionStrip } from './components/ActionStrip';
 import { HandFan } from './components/HandFan';
-import { CardRow } from './components/PokerCard';
+import { CardRow, PokerCard } from './components/PokerCard';
 import { Scene } from './components/Scene';
 import { SettlePanel } from './components/PhasePanels';
-import { SeatWidget } from './components/SeatWidget';
+import { CountdownClock, SeatWidget } from './components/SeatWidget';
 import {
   cardsByIds,
   getActiveSeat,
   getMedal,
   getPickState,
   getPlannedSupply,
-  getReturnSelectState,
+  getReturnState,
   getSeatLabel,
   getSeatStatuses,
   getSeatTrickAction,
   getSelfSeat,
   getSettleView,
   getSupplyGainedIds,
-  getSupplyStageText,
   getSupplyTransfers,
   getTurnLabel,
   isLandlordPublic,
@@ -99,7 +98,7 @@ export default function App() {
   const statuses = getSeatStatuses(game);
   const settleView = getSettleView(game);
   const deadlocked = supplyDeadlocked(game);
-  const returnSelect = getReturnSelectState(game);
+  const returnState = getReturnState(game);
   const pickState = getPickState(game);
   const tintSupply = shouldTintSupply(game);
   const gainedIds = getSupplyGainedIds(game);
@@ -116,7 +115,16 @@ export default function App() {
   // 倒计时显示用「秒」，而 T 里的时长是给 setTimeout 的毫秒
   const turnRemaining = useCountdown(turnKey, Math.round(T.turn / 1000));
 
-  const returnKey = `${game.handNo}-return-${returnSelect?.winner ?? 'x'}`;
+  // 回牌是同步的：每个赢家各自回牌；倒计时共用一条（从拿到供牌开始算 20 秒）
+  const pendingReturnSeats = returnState === null ? [] : returnState.seats.filter((row) => !row.done);
+  const returnDisplaySeat =
+    viewSeat ?? pendingReturnSeats[0]?.seat ?? returnState?.seats[0]?.seat ?? null;
+  const returnDisplayRow =
+    returnState === null || returnDisplaySeat === null
+      ? null
+      : returnState.seats.find((row) => row.seat === returnDisplaySeat) ?? null;
+  const returnIsActor = returnDisplayRow !== null && !returnDisplayRow.done;
+  const returnKey = `${game.handNo}-return`;
   const returnRemaining = useCountdown(returnKey, Math.round(T.returnSelect / 1000));
   const pickKey = `${game.handNo}-pick-${pickState?.picker ?? 'x'}-${pickState?.pool.length ?? 0}`;
   const pickRemaining = useCountdown(pickKey, Math.round(T.returnPick / 1000));
@@ -178,14 +186,18 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [entered, dealing, game.phase, game.handNo, skipReveal]);
 
-  // 赢家回牌倒计时：超时自动回最小牌（Q-041）
+  // 回牌倒计时：到点后自动给每个还没交牌的赢家交「最小」的牌（Q-041）；多赢家时依次快速补完
   useEffect(() => {
     if (!entered) return;
     if (game.phase !== 'SUPPLY' || game.supplyContext?.step !== 'RETURN_SELECT') return;
     if (supplyStage !== 'done') return;
-    const timer = setTimeout(() => autoReturn(), T.returnSelect);
+    const pending = returnState?.seats.filter((row) => !row.done).length ?? 0;
+    if (pending === 0) return;
+    const total = returnState?.seats.length ?? 1;
+    const delay = pending === total ? T.returnSelect : 400;
+    const timer = setTimeout(() => autoReturn(), delay);
     return () => clearTimeout(timer);
-  }, [entered, game.phase, game.supplyContext?.step, supplyStage, game.handNo, autoReturn]);
+  }, [entered, game.phase, game.supplyContext?.step, supplyStage, game.handNo, pendingReturnSeats.length, autoReturn, returnState?.seats.length]);
 
   // 挑回牌倒计时：超时默认拿最大的回牌（用户确认口径）
   // 双地明牌输（12 张、1 个输家）时：先给 15 秒，然后每 350ms 自动拿走一张，整批转回供牌方
@@ -217,24 +229,13 @@ export default function App() {
   const plannedSupply = getPlannedSupply(game);
   const transfers = getSupplyTransfers(game);
 
-  const bannerText = dealing
-    ? '发牌'
-    : startBanner
-      ? '开始游戏'
-      : game.phase === 'PLAYING'
-        ? ''
-        : game.phase === 'SETTLE'
-          ? '游戏结算'
-          : game.phase === 'LOCK_WINDOW'
-            ? '锁定窗口'
-            : getSupplyStageText(game);
-
   const renderOpponent = (seat: number, slot: 'top' | 'top-left' | 'top-right') => {
     const status = statuses.find((item) => item.seat === seat);
     const isActive = activeSeat === seat;
     // 用户 2026-11-16：轮到某人行动时，他之前打出的牌/「不出」先隐去，等他打出新的牌再显示
     const action = isActive ? null : getSeatTrickAction(game, seat);
-    const countdown = isActive && turnRemaining <= 10 ? turnRemaining : null;
+    // 别人也能看到行动者的闹钟倒计时（自己那侧用按钮条里的倒计时）
+    const clockSeconds = isActive && seat !== selfSeat ? turnRemaining : null;
     const supplyFromLoser =
       plannedSupply?.losers.find((row) => row.seat === seat)?.cards ??
       (supplyStage === 'show' ? transfers.filter((row) => row.from === seat).map((row) => row.card) : []);
@@ -250,8 +251,8 @@ export default function App() {
           out={status?.out ?? false}
           playedCards={action?.kind === 'PLAY' ? action.cards : null}
           passed={action?.kind === 'PASS'}
-          countdownSeconds={countdown}
-          countdownActive={isActive && turnRemaining > 0}
+          countdownSeconds={clockSeconds}
+          countdownTotal={Math.round(T.turn / 1000)}
         />
         {supplyFromLoser.length > 0 && (
           <div className={`supply-out supply-out--${slot}`}>
@@ -303,8 +304,9 @@ export default function App() {
 
           {/* 中央：阶段提示 / 轮到谁 */}
           <div className="center">
-            {bannerText !== '' && <p className="stage-banner">{bannerText}</p>}
             {game.phase === 'PLAYING' && <p className="center__turn">{getTurnLabel(game)}</p>}
+            {startBanner && <p className="stage-banner">开始游戏</p>}
+            {dealing && <p className="stage-banner">发牌</p>}
 
             {/* 中央出牌区：自己打出的牌 / 不出 */}
             {game.phase === 'PLAYING' && (
@@ -317,11 +319,8 @@ export default function App() {
             {/* 明牌决策（双地） */}
             {game.phase === 'REVEAL' && game.doubleSeat !== null && (
               <div className="center-card">
-                <p className="center-card__title">
-                  {getSeatLabel(game.doubleSeat)} 是双地（1 打 3）
-                </p>
-                <p className="center-card__line">明牌：不供牌、由你首发、本局供牌翻倍（6→12），不可反悔</p>
-                <div className="center-card__timer">{revealRemaining}s</div>
+                <p className="center-card__title">双地：是否明牌</p>
+                <div className="center-card__timer">{revealRemaining}</div>
                 <div className="center-card__actions">
                   <button type="button" className="btn-primary" onClick={reveal}>
                     明牌
@@ -337,7 +336,6 @@ export default function App() {
             {deadlocked && (
               <div className="center-card">
                 <p className="center-card__title">供不出 12 张</p>
-                <p className="center-card__line">♠3/♠A 不能交，最多只能交 11 张：明牌（债务作废）或重新发牌（债务保留）</p>
                 <div className="center-card__actions">
                   <button type="button" className="btn-primary" onClick={reveal}>
                     明牌
@@ -349,47 +347,35 @@ export default function App() {
               </div>
             )}
 
-            {/* 赢家回牌：桌面中间倒计时 */}
-            {returnSelect !== null && supplyStage === 'done' && (
-              <div className="center-card">
-                <p className="center-card__title">{returnSelect.label} 选择要返还的牌</p>
-                <p className="center-card__line">需返还 {returnSelect.required} 张 · ♠3/♠A 不能选</p>
-                <div className="center-card__timer">{returnRemaining}s</div>
+            {/* 回牌：所有人只看到桌面中间的大闹钟（自己那侧另外有按钮条） */}
+            {returnState !== null && supplyStage === 'done' && pendingReturnSeats.length > 0 && (
+              <div className="center-clock">
+                <CountdownClock remaining={returnRemaining} total={Math.round(T.returnSelect / 1000)} size="lg" />
               </div>
             )}
 
-            {/* 供牌结束 → 等待几秒进入游戏（锁定窗口用倒计时，不弹窗） */}
+            {/* 供牌结束 → 只显示倒计时；平局后的那一局加上「本局平平无奇」 */}
             {game.phase === 'LOCK_WINDOW' && (
               <div className="center-card">
-                <p className="center-card__title">供牌结束</p>
-                <p className="center-card__line">
-                  {selfLockEligible
-                    ? '你手牌全是 4~10，可点手牌上方的「提前锁定第三名」'
-                    : '符合条件的人正在决定是否锁定第三名'}
-                </p>
-                <div className="center-card__timer">{lockRemaining}s</div>
+                {game.result?.draw === true && <p className="draw-flavor">本局平平无奇</p>}
+                <div className="center-card__timer">{lockRemaining}</div>
               </div>
             )}
 
-            {/* 挑回牌：回牌摆在桌面中间 */}
+            {/* 挑回牌：回牌摆在桌面中间（透明、单排、可重叠） */}
             {pickState !== null && (
               <div className="pick-zone">
-                <p className="center-card__title">
-                  {pickState.autoMode
-                    ? '双地明牌输了：整批回牌将直接回到供牌方手中'
-                    : `轮到 ${pickState.pickerLabel} 挑选回牌`}
-                </p>
-                <CardRow
-                  cards={pickState.pool}
-                  size="played"
-                  selectedIds={highlightedReturnId === null ? [] : [highlightedReturnId]}
-                  onCardClick={(card) => highlightReturn(card.id)}
-                />
-                {!pickState.autoMode && (
-                  <p className="pick-zone__hint">
-                    点中间一张牌高亮，再点 {pickState.pickerLabel} 旁的「选这张」 · {pickRemaining}s
-                  </p>
-                )}
+                <div className="pick-row">
+                  {pickState.pool.map((card) => (
+                    <PokerCard
+                      key={card.id}
+                      card={card}
+                      size="played"
+                      selected={highlightedReturnId === card.id}
+                      onClick={() => highlightReturn(card.id)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -458,51 +444,41 @@ export default function App() {
                 onToggle={(card: Card) => {
                   if (isSelfTurn) toggleCard(card.id);
                 }}
-                disabled={!isSelfTurn}
               />
             </>
           )}
 
-          {/* 回牌阶段：赢家手牌（14/15 张，供来的牌标色）+ 回牌按钮；切视角时显示对应玩家的牌 */}
-          {returnSelect !== null && game.phase === 'SUPPLY' && (() => {
-            const displaySeat = viewSeat ?? returnSelect.winner;
-            const isActor = displaySeat === returnSelect.winner;
-            const displayHand = sortHandDesc(game.players[displaySeat]?.hand ?? []);
+          {/* 回牌阶段：所有赢家同步回牌，切视角就能操作对应赢家；牌不加灰 */}
+          {returnState !== null && game.phase === 'SUPPLY' && returnDisplaySeat !== null && (() => {
+            const displayHand = sortHandDesc(game.players[returnDisplaySeat]?.hand ?? []);
             return (
               <>
-                <div className="strip-wrap">
-                  <div className="return-actions">
-                    {isActor ? (
-                      <>
-                        <span className="return-actions__count">
-                          已选 {selectedIds.length} / {returnSelect.required}
-                        </span>
-                        <span className="return-actions__timer">{returnRemaining}s</span>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          disabled={selectedIds.length !== returnSelect.required}
-                          onClick={submitReturnSelected}
-                        >
-                          回牌
-                        </button>
-                        <button type="button" className="btn-ghost" onClick={autoReturn}>
-                          自动选最小
-                        </button>
-                      </>
-                    ) : (
+                {returnIsActor && returnDisplayRow !== null && (
+                  <div className="strip-wrap">
+                    <div className="return-actions">
                       <span className="return-actions__count">
-                        {getSeatLabel(displaySeat)} 的手牌（只读视角，正在回牌的是 {returnSelect.label}）
+                        已选 {selectedIds.length} / {returnDisplayRow.required}
                       </span>
-                    )}
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={selectedIds.length !== returnDisplayRow.required}
+                        onClick={submitReturnSelected}
+                      >
+                        回牌
+                      </button>
+                      <button type="button" className="btn-ghost" onClick={autoReturn}>
+                        自动选最小
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
                 <HandFan
                   cards={displayHand}
-                  selectedIds={isActor ? selectedIds : []}
-                  tintedIds={isActor ? gainedIds : []}
+                  selectedIds={returnIsActor ? selectedIds : []}
+                  tintedIds={gainedIds}
                   onToggle={(card) => {
-                    if (!isActor) return;
+                    if (!returnIsActor) return;
                     if (card.rank === 16 && card.suit === 4) {
                       useHotseatStore.setState({ notice: '不能回 ♠3', noticeTone: 'error' });
                       return;
@@ -513,20 +489,18 @@ export default function App() {
                     }
                     toggleCard(card.id);
                   }}
-                  disabled={!isActor}
                 />
               </>
             );
           })()}
 
           {/* 其他阶段：也把自己的牌显示出来（供牌/挑选时看得到） */}
-          {game.phase !== 'PLAYING' && returnSelect === null && (
+          {game.phase !== 'PLAYING' && returnState === null && (
             <HandFan
               cards={selfHand}
               selectedIds={[]}
               tintedIds={tintSupply ? gainedIds : []}
               onToggle={() => undefined}
-              disabled
             />
           )}
 
@@ -534,27 +508,25 @@ export default function App() {
           {game.phase === 'LOCK_WINDOW' && selfLockEligible && (
             <div className="strip-wrap">
               <div className="return-actions">
-                <span className="return-actions__timer">{lockRemaining}s</span>
                 <button
                   type="button"
                   className={selfLockIntent ? 'btn-primary' : 'btn-ghost'}
                   onClick={() => setLockIntent(selfSeat, !selfLockIntent)}
                 >
-                  {selfLockIntent ? '已申请锁定（点此取消）' : '提前锁定第三名'}
+                  {selfLockIntent ? '已锁定（点此取消）' : '提前锁定'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* 挑回牌：点中间一张牌高亮，再点手牌上方的「选这张」确认 */}
+          {/* 挑回牌：中间点牌高亮 → 手牌上方「选这张」（按钮风格与出牌一致） */}
           {pickState !== null && !pickState.autoMode && (
             <div className="strip-wrap">
-              <div className="return-actions">
-                <span className="return-actions__count">{pickState.pickerLabel} 挑回牌</span>
-                <span className="return-actions__timer">{pickRemaining}s</span>
+              <div className="pick-bar">
+                <CountdownClock remaining={pickRemaining} total={Math.round(T.returnPick / 1000)} size="sm" />
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="as__btn as__btn--gold"
                   disabled={highlightedReturnId === null}
                   onClick={confirmPickReturn}
                 >

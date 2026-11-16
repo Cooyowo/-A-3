@@ -201,12 +201,13 @@ describe('M2 横屏界面（jsdom）', () => {
     expect(store().viewSeat).toBe(0);
   });
 
-  it('供牌结束：不弹窗，桌面中间显示锁定倒计时', () => {
+  it('供牌结束：不弹窗，桌面中间只有倒计时数字', () => {
     boot();
     advanceToLockWindow();
     renderEntered();
 
-    expect(screen.getByText('供牌结束')).toBeTruthy();
+    expect(document.querySelector('.center-card__timer')).not.toBeNull();
+    expect(screen.queryByText('开始出牌')).toBeNull();
   });
 
   it('结算：出现「下一局」，点了进入下一局', () => {
