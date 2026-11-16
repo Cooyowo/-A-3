@@ -17,7 +17,10 @@
     "selfplay": "vitest run packages/core/tests/selfplay.test.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev": "npm run dev --workspace @a3/web",
-    "build": "npm run build --workspace @a3/web"
+    "build": "npm run build --workspace @a3/web",
+    "dev:server": "npm run dev --workspace @a3/server",
+    "dev:web": "npm run dev --workspace @a3/web",
+    "e2e": "vitest run apps/server/tests/e2e.test.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

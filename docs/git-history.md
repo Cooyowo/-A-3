@@ -5,6 +5,51 @@
 
 ---
 
+## M3 在线对战 —— 2026-11-16
+
+**前置提交**：`21e5b29`　**本次提交**：见 `git log` 最新一条
+
+**做了什么**：把本地热座接成 4 人联机（服务端权威 + 邀请码房间 + 断线重连），前端复用 M2 全部牌桌组件。
+
+| 层 | 内容 |
+|---|---|
+| `packages/protocol`（新） | 客户端/服务端共用协议：`ClientMessage`（zod 校验）、`PlayerView`、`RoomInfo`、`ServerMessage` |
+| `apps/server`（补完） | 房间改为「**满 4 人才发牌**」：创建房间只占座，第 4 人进来才 `startIfReady()`；大厅信息 `room` 消息；`view.deadline` 下发各阶段截止时间；重写 `viewFor`（含供牌债务/回牌张数/锁定资格等本人信息、公开牌面）；HTTP 加 `GET /api/rooms` |
+| 服务端构建 | 新增 `vite.config.ts`：把 server 打成 `dist/main.mjs`（tsx 在本机 spawn EPERM，见下）；`npm run dev:server` 一条命令构建+启动 |
+| `apps/web/src/game/online`（新） | `net.ts`（WebSocket + 自动重连 + 心跳）、`adapter.ts`（`PlayerView` → `GameState`，别人手牌用负数占位牌凑张数）、`store.ts`（联机 store：建/加入房间、动作上报、token 重连） |
+| `apps/web` UI（新） | `Lobby.tsx`（建/加入房间、邀请码复制、4 座位等待）、`OnlineApp.tsx`（大厅↔牌桌路由 + 连接状态条）、`OnlineTable.tsx`（联机牌桌，复用 Scene/SeatWidget/HandFan/ActionStrip/SettlePanel） |
+| `App.tsx` | 首页新增「在线对战」入口；`screen !== 'home'` 时整屏交给 OnlineApp（热座逻辑一行未动） |
+
+**怎么验证**
+
+| 验收项 | 命令/操作 | 结果 |
+|---|---|---|
+| 全量测试 | `npm.cmd test` | **14 个测试文件 / 202 个用例全绿**（新增 server 7 + e2e 3 + web adapter 6） |
+| 类型检查 | `npm.cmd run typecheck` | 全仓（core / protocol / server / web）0 error |
+| 4 人整局（自动化） | `npm.cmd run e2e` | 真实 WebSocket 起 4 个客户端，从建房→加入→发牌→出牌→结算全流程 3 秒内打完；断言无死锁、客户端零错误 |
+| 隐藏信息 | 同上 | 开局时断言：别人手牌字段不存在、别人的每张牌 id 都不出现在我的视图 JSON 里 |
+| 断线重连 | 同上 | 断开一个客户端 → 其他人看到 `connected=false` → 用 token `resume` → 座位与手牌完全一致 |
+| 非法动作 | 同上 | 空牌 PLAY → 只回错误，视图不变 |
+| 服务端独立运行 | `npm.cmd run dev:server` | 构建后启动成功；`/api/health`、`POST /api/rooms`、`GET /api/rooms/:code`、`ws /ws` 均验证通过 |
+| 前端联机模块 | `npm.cmd run dev:web` | `/`、`OnlineApp.tsx`、`Lobby.tsx`、`OnlineTable.tsx`、`online/store.ts` 均 200 编译通过；`npm.cmd run build --workspace @a3/web` 成功（CSS 56.6KB / JS 300KB） |
+
+**踩到的坑**
+
+1. **tsx 在本机跑不起来**：esbuild 需要常驻子进程，受限环境 `spawn EPERM`。改为 Vite SSR 构建成单文件 `dist/main.mjs`，把 `@a3/core`/`@a3/protocol` 打进 bundle、第三方依赖 external；`npm.cmd run dev:server` 一键构建+启动。
+2. **协议类型两边漂移**：抽出 `packages/protocol` 共用（zod 校验也在这里），server 的 `src/protocol.ts` 只做转出口。
+3. **`topPattern` 只有牌面没有比较键**：适配器用 `identifyPattern` 重新识别一次，否则客户端「能不能压」会算错（服务端仍会兜底拒绝，但会白报错误）。
+4. **退出房间后不能再进**：`leaveRoom()` 需要重置模块级「已启动」标志与 status，否则再点「在线对战」不会重连（已修）。
+
+**已知限制（留给 M4 / 后续）**
+
+1. 出牌回合没有强制超时与托管（Q-033），掉线超过 30 秒后牌局会卡住，只能重开房间。
+2. 房间不自动回收；服务端重启即清空。
+3. 没有账号/观战/多房间列表 UI（只有 `GET /api/rooms` 接口）。
+
+**下一步**：M4 部署上线（Docker 多阶段构建、compose(app + caddy)、`deploy/DEPLOY.md`、阿里云 ECS 一次成功）。
+
+---
+
 ## M2 界面第七轮：供牌等待状态（引擎）+ 结算字体精调 —— 2026-11-16
 
 **前置提交**：`ab74fcb`　**本次提交**：见 `git log` 最新一条

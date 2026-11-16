@@ -1,0 +1,59 @@
+/* M3 联机牌桌专用样式（大厅样式在 online.css，由 Lobby 引入） */
+
+.online-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(14px, 2.2dvh, 20px);
+  color: var(--paper, #f7f3e6);
+  letter-spacing: 0.12em;
+}
+
+/* 右上角：房间号 + 局数 + 退出 */
+.online-topbar {
+  position: fixed;
+  top: 1.6dvh;
+  right: 1.6vw;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  padding: 0.4dvh 0.8vw 0.4dvh 1.2vw;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(240, 200, 96, 0.28);
+  color: #f4ead2;
+  font-size: clamp(10px, 1.5dvh, 14px);
+}
+
+.online-topbar__code {
+  color: var(--gold, #f0c860);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.online-topbar__hand {
+  opacity: 0.75;
+}
+
+/* 挑回牌确认按钮 */
+.pick-confirm {
+  margin-top: 0.6dvh;
+}
+
+/* 结算浮层：多一行「几秒后自动下一局」 */
+.online-settle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8dvh;
+}
+
+.online-settle__hint {
+  margin: 0;
+  font-size: clamp(11px, 1.7dvh, 15px);
+  color: #ffe08a;
+  opacity: 0.85;
+  letter-spacing: 0.08em;
+}

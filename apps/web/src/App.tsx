@@ -9,6 +9,7 @@ import { CardRow, PokerCard } from './components/PokerCard';
 import { Scene } from './components/Scene';
 import { SettlePanel } from './components/PhasePanels';
 import { CountdownClock, SeatWidget } from './components/SeatWidget';
+import { OnlineApp } from './components/OnlineApp';
 import {
   cardsByIds,
   getActiveSeat,
@@ -29,6 +30,7 @@ import {
   shouldTintSupply,
   sortHandDesc,
 } from './game/selectors';import { supplyDeadlocked, useHotseatStore } from './game/store';
+import { useOnlineStore } from './game/online/store';
 import { useCountdown } from './game/useCountdown';
 import './styles/table.css';
 import './styles/flow.css';
@@ -78,6 +80,9 @@ export default function App() {
   const confirmSupply = useHotseatStore((state) => state.confirmSupply);
   const dismissNotice = useHotseatStore((state) => state.dismissNotice);
   const cycleViewSeat = useHotseatStore((state) => state.cycleViewSeat);
+
+  // 联机模式路由：点了「在线对战」/ 进了房间后 screen 不再是 home，整屏交给 OnlineApp
+  const onlineScreen = useOnlineStore((state) => state.screen);
 
   const [entered, setEntered] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -292,6 +297,9 @@ export default function App() {
   };
 
   // ---------------------------------------------------------------- 欢迎页
+  // 联机入口：进了大厅 / 牌桌就整屏切给 OnlineApp（热座状态与计时器都还在，切回来不影响）
+  if (onlineScreen !== 'home') return <OnlineApp />;
+
   if (!entered) {
     return (
       <div className="tbl-shell">
@@ -307,6 +315,16 @@ export default function App() {
           <p className="welcome__sub">四人扑克 · 家乡玩法 · 横屏</p>
           <button type="button" className="welcome__enter" onClick={() => setEntered(true)}>
             进入游戏
+          </button>
+          <button
+            type="button"
+            className="welcome__enter welcome__online"
+            onClick={() => {
+              useOnlineStore.getState().start();
+              useOnlineStore.setState({ screen: 'room' });
+            }}
+          >
+            在线对战
           </button>
           <p className="welcome__tip">建议横屏使用 · 当前为本机热座测试版</p>
         </div>

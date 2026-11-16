@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Room, RoomManager, TIMING } from '../src/room.ts';
+import { Room, RoomManager, SEAT_COUNT, TIMING } from '../src/room.ts';
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -22,18 +22,44 @@ function makeRoom(): Room {
   return new Room('TEST01', mulberry32(20261116));
 }
 
+/** 开一个满 4 人、已经发牌的房间 */
+function startedRoom(): Room {
+  const room = makeRoom();
+  for (let seat = 0; seat < SEAT_COUNT; seat += 1) room.join(`玩家${seat + 1}`, fakeSocket());
+  expect(room.startIfReady()).toBe(true);
+  return room;
+}
+
 describe('房间与邀请码', () => {
-  it('创建房间生成 6 位邀请码；最多 4 个座位', () => {
+  it('创建房间生成 6 位邀请码；最多 4 个座位；满 4 人才开局', () => {
     const manager = new RoomManager();
     const room = manager.create(mulberry32(1));
     expect(room.code).toMatch(/^[A-Z2-9]{6}$/);
+    expect(room.started).toBe(false);
 
-    for (let seat = 0; seat < 4; seat += 1) {
+    for (let seat = 0; seat < 3; seat += 1) {
       const joined = room.join(`玩家${seat + 1}`, fakeSocket());
       expect(joined?.seat).toBe(seat);
     }
-    expect(room.playerCount).toBe(4);
+    expect(room.startIfReady()).toBe(false);
+    expect(room.started).toBe(false);
+
+    room.join('玩家4', fakeSocket());
+    expect(room.startIfReady()).toBe(true);
+    expect(room.started).toBe(true);
     expect(room.join('第五人', fakeSocket())).toBeNull();
+  });
+
+  it('大厅信息包含 4 个座位的昵称与「是否开局」', () => {
+    const room = makeRoom();
+    room.join('甲', fakeSocket());
+    room.join('乙', fakeSocket());
+    const info = room.roomInfo(1);
+    expect(info.room).toBe('TEST01');
+    expect(info.started).toBe(false);
+    expect(info.mySeat).toBe(1);
+    expect(info.seats.map((seat) => seat.name)).toEqual(['甲', '乙']);
+    expect(info.seats.map((seat) => seat.seat)).toEqual([0, 1]);
   });
 
   it('token 可以在断线后重连回原座位', () => {
@@ -53,31 +79,71 @@ describe('房间与邀请码', () => {
 });
 
 describe('服务端权威与隐藏信息', () => {
-  it('每个座位的视图只有自己的手牌，别人的只有张数', () => {
-    const room = makeRoom();
-    for (let seat = 0; seat < 4; seat += 1) room.join(`玩家${seat + 1}`, fakeSocket());
+  it('开局后每个座位的视图只有自己的手牌（别人只有张数）', () => {
+    const room = startedRoom();
 
-    for (const seat of [0, 1, 2, 3]) {
+    for (let seat = 0; seat < SEAT_COUNT; seat += 1) {
       const view = room.viewFor(seat);
       expect(view.hand).toHaveLength(13);
-      expect(Object.hasOwn(view, 'players')).toBe(true);
+      // 别人的对象里不能出现 hand 字段
       for (const player of view.players) {
         expect(Object.hasOwn(player, 'hand')).toBe(false);
       }
-      // 自己手里不能出现别人手牌（简单校验：4 家手牌 id 集合在服务端互不相交）
     }
+
+    // 4 家手牌互不相交，合起来是 52 张
     const hands = [0, 1, 2, 3].map((seat) => room.viewFor(seat).hand.map((card) => card.id));
     const all = hands.flat();
-    expect(new Set(all).size).toBe(all.length);
+    expect(new Set(all).size).toBe(52);
+    expect(all).toHaveLength(52);
+
+    // 开局瞬间没有任何公开牌，别人手里的牌 id 绝不能出现在我的视图里
+    for (let me = 0; me < SEAT_COUNT; me += 1) {
+      const view = room.viewFor(me);
+      expect(view.publicCards).toHaveLength(0);
+      const json = JSON.stringify(view);
+      for (let other = 0; other < SEAT_COUNT; other += 1) {
+        if (other === me) continue;
+        for (const id of hands[other] as number[]) {
+          // 用边界匹配，避免 `"id":5` 误命中 `"id":52`
+          expect(new RegExp(`"id":${id}[,}]`).test(json)).toBe(false);
+        }
+      }
+    }
   });
 
-  it('没满 4 人不能动作；动作必须合法', () => {
+  it('没满 4 人不能动作；开局后非法动作抛错；合法动作会推进状态', () => {
     const room = makeRoom();
     room.join('A', null);
     expect(() => room.action(0, { kind: 'PASS' })).toThrow('等满 4 个人才能开始');
 
-    for (let seat = 0; seat < 4; seat += 1) room.join(`玩家${seat + 1}`, null);
-    expect(() => room.action(1, { kind: 'PLAY', cards: [] })).toThrow();
+    const full = startedRoom();
+    expect(() => full.action(1, { kind: 'PLAY', cards: [] })).toThrow();
+  });
+
+  it('需要等待的阶段会下发 deadline（前端据此显示倒计时）', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 40 && checked < 3; seed += 1) {
+      const room = new Room('T', mulberry32(seed));
+      for (let seat = 0; seat < SEAT_COUNT; seat += 1) room.join(`P${seat}`, fakeSocket());
+      room.startIfReady();
+      // 服务端真正跑起来时会先 broadcast（内部 scheduleNext 才会写 deadline）
+      room.broadcast();
+      const view = room.viewFor(0);
+      const waiting =
+        view.phase === 'REVEAL' ||
+        view.phase === 'LOCK_WINDOW' ||
+        view.supplyPaused ||
+        view.supplyStep === 'RETURN_SELECT' ||
+        view.supplyStep === 'RETURN_PICK';
+      if (waiting) {
+        expect(typeof view.deadline).toBe('number');
+        checked += 1;
+      }
+      room.dispose();
+      if (checked >= 3) break;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 

@@ -43,6 +43,8 @@ export function buildServer(options: ServerOptions = {}) {
     return { code: room.code };
   });
 
+  app.get('/api/rooms', async () => ({ ok: true, rooms: manager.list() }));
+
   app.get('/api/rooms/:code', async (request) => {
     const { code } = request.params as { code: string };
     const room = manager.get(code.toUpperCase());
@@ -97,6 +99,8 @@ export function buildServer(options: ServerOptions = {}) {
           state.roomCode = room.code;
           state.seat = joined.seat;
           send(socket, { t: 'joined', token: joined.token, room: room.code, seat: joined.seat, resumed: false });
+          room.broadcastRoom();
+          room.startIfReady();
           room.broadcast();
           return;
         }
@@ -110,6 +114,8 @@ export function buildServer(options: ServerOptions = {}) {
           state.roomCode = room.code;
           state.seat = joined.seat;
           send(socket, { t: 'joined', token: joined.token, room: room.code, seat: joined.seat, resumed: false });
+          room.broadcastRoom();
+          room.startIfReady();
           room.broadcast();
           return;
         }
@@ -122,6 +128,8 @@ export function buildServer(options: ServerOptions = {}) {
           state.roomCode = room.code;
           state.seat = joined.seat;
           send(socket, { t: 'joined', token: joined.token, room: room.code, seat: joined.seat, resumed: true });
+          room.broadcastRoom();
+          room.startIfReady();
           room.broadcast();
           return;
         }
@@ -147,7 +155,8 @@ export function buildServer(options: ServerOptions = {}) {
       const room = manager.get(state.roomCode);
       if (room === undefined) return;
       room.markDisconnected(state.seat);
-      // 30 秒内可以用 token 重连；过期就当作离线
+      // 让其他人看到「掉线」状态；30 秒内可以用 token 重连
+      room.broadcast();
       setTimeout(() => {
         const target = manager.get(state.roomCode as string);
         if (target !== undefined && !target.isConnected(state.seat as number)) {

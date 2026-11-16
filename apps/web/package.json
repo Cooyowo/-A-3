@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@a3/core": "0.0.0",
+    "@a3/protocol": "0.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.1.0"

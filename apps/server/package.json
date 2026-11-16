@@ -5,12 +5,14 @@
   "type": "module",
   "description": "葵A葵3 在线对战服务端（Fastify + ws + zod，服务端权威）",
   "scripts": {
-    "dev": "tsx src/main.ts",
+    "dev": "npm run build && node dist/main.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "start": "tsx src/main.ts"
+    "start": "node dist/main.mjs",
+    "build": "vite build"
   },
   "dependencies": {
     "@a3/core": "0.0.0",
+    "@a3/protocol": "0.0.0",
     "fastify": "^5.12.8",
     "ws": "^8.23.0",
     "zod": "^4.6.7"
@@ -18,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "vite": "^8.3.8"
   }
 }
