@@ -22,11 +22,36 @@ import { mulberry32 } from './rng';
 import { cardsByIds, getActiveSeat } from './selectors';
 
 /** 热座（M2）状态：一个页面、四人轮流在同一个设备上操作 */
+/** 可调试的时间参数（毫秒）。测试阶段在「参数设置」面板里可改 */
+export interface Timings {
+  deal: number;
+  reveal: number;
+  supplyMove: number;
+  returnSelect: number;
+  returnPick: number;
+  lock: number;
+  turn: number;
+  autoPickStep: number;
+}
+
+export const DEFAULT_TIMINGS: Timings = {
+  deal: 1200,
+  reveal: 4000,
+  supplyMove: 800,
+  returnSelect: 20000,
+  returnPick: 15000,
+  lock: 5000,
+  turn: 30000,
+  autoPickStep: 350,
+};
+
 export interface HotseatGame {
   game: GameState;
   seed: number;
   /** 第几次「新开一局」：用来让所有倒计时 key 一起重置（否则新开一局倒计时不会重新开始） */
   session: number;
+  /** 当前生效的时间参数（可在测试工具条里改） */
+  timings: Timings;
   /** 当前点选（等待出牌/回牌）的牌 id */
   selectedCardIds: number[];
   /** 顶部提示（非法操作原因、操作成功反馈等） */
@@ -57,6 +82,10 @@ export interface HotseatActions {
   dismissNotice(): void;
   /** 测试用：循环切换视角（自动 → 1 号位 → 2 号位 → 3 号位 → 4 号位 → 自动） */
   cycleViewSeat(): void;
+  /** 测试面板：改某个时间参数 */
+  setTiming(key: keyof Timings, value: number): void;
+  /** 测试面板：用指定种子重开一局 */
+  restartWithSeed(seed: number): void;
   /** 挑回牌：点亮桌面中间的一张回牌 */
   highlightReturn(cardId: number): void;
   /** 挑回牌：确认拿走当前点亮的回牌 */
@@ -67,13 +96,14 @@ export interface HotseatActions {
 
 export type HotseatStore = HotseatGame & HotseatActions;
 
-function initialState(seed: number, session = 0): HotseatGame {
+function initialState(seed: number, session = 0, timings: Timings = DEFAULT_TIMINGS): HotseatGame {
   const rng: Rng = mulberry32(seed);
   const game = autoAdvance(createGame(rng));
   return {
     game,
     seed,
     session,
+    timings: { ...timings },
     selectedCardIds: [],
     notice: null,
     noticeTone: 'info',
@@ -135,10 +165,19 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
       const nextSeed = seed ?? Math.floor(Math.random() * 2 ** 31);
       const session = get().session + 1;
       set({
-        ...initialState(nextSeed, session),
+        ...initialState(nextSeed, session, get().timings),
         notice: `新开一局（种子 ${nextSeed}）`,
         noticeTone: 'success',
       });
+    },
+
+    setTiming(key, value) {
+      const { timings } = get();
+      set({ timings: { ...timings, [key]: Math.max(0, Math.round(value)) } });
+    },
+
+    restartWithSeed(seed) {
+      get().newGame(seed);
     },
 
     toggleCard(cardId) {

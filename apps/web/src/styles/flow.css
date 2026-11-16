@@ -600,3 +600,49 @@
 .btn-ghost:not(:disabled):active {
   transform: translateY(0) scale(0.99);
 }
+
+/* 参数设置面板 */
+.settings {
+  min-width: min(70vw, 640px);
+}
+.settings__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8dvh 1.6vw;
+  margin-bottom: 1.4dvh;
+}
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  font-size: clamp(12px, 1.8dvh, 15px);
+}
+.settings__row span { flex: 1; color: #5a3a12; }
+.settings__row input {
+  width: 6.2em;
+  padding: 0.4dvh 0.5vw;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 90, 40, 0.35);
+  background: #fffdf6;
+  color: #3a2a10;
+  font-size: inherit;
+}
+.settings__row em { opacity: 0.6; font-style: normal; }
+.settings__seed {
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  margin-bottom: 1dvh;
+  font-size: clamp(12px, 1.8dvh, 15px);
+  color: #5a3a12;
+}
+.settings__seed input {
+  width: 10em;
+  padding: 0.4dvh 0.5vw;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 90, 40, 0.35);
+  background: #fffdf6;
+  color: #3a2a10;
+  font-size: inherit;
+}
+.settings__tip { margin: 0 0 1dvh; font-size: clamp(11px, 1.6dvh, 14px); color: #8a6a34; }

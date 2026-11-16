@@ -34,19 +34,6 @@ import './styles/table.css';
 import './styles/flow.css';
 import './styles/layout-v3.css';
 
-/** 时长（用户确认用默认这套） */
-const T = {
-  deal: 1200, // 发牌动画
-  supplyShow: 4000, // 供牌展示（不可跳过）
-  supplyMove: 800, // 供牌飞牌动画
-  reveal: 4000, // 明牌决策（与供牌倒计时同步）
-  returnSelect: 20000, // 赢家回牌
-  returnPick: 15000, // 每位供牌方挑回牌
-  lock: 5000, // 供牌结束后的锁定窗口（等几秒自动进入游戏）
-  turn: 30000, // 出牌回合（仅展示）
-  autoPickStep: 350, // 双地明牌输：整批转移的每张间隔
-};
-
 const RULES: string[] = [
   '牌组档位（高的无条件压低的）：炸弹 8 ＞ 四夹一 7 ＞ 同花顺 6 ＞ 三条夹双 5 ＞ 同花 4 ＞ 顺子 3 ＞ 三条夹一 2 ＞ 三条 1。',
   '单张 / 对子 / 牌组三个大类不能互相压；炸弹不能压单张、对子。',
@@ -61,6 +48,10 @@ export default function App() {
   const game = useHotseatStore((state) => state.game);
   const seed = useHotseatStore((state) => state.seed);
   const session = useHotseatStore((state) => state.session);
+  // 时间参数可在右上角「设置」里调，测试阶段不用改代码
+  const T = useHotseatStore((state) => state.timings);
+  const setTiming = useHotseatStore((state) => state.setTiming);
+  const restartWithSeed = useHotseatStore((state) => state.restartWithSeed);
   const selectedIds = useHotseatStore((state) => state.selectedCardIds);
   const notice = useHotseatStore((state) => state.notice);
   const noticeTone = useHotseatStore((state) => state.noticeTone);
@@ -89,6 +80,8 @@ export default function App() {
 
   const [entered, setEntered] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [seedInput, setSeedInput] = useState('20261115');
   const [dealing, setDealing] = useState(false);
   const [supplyStage, setSupplyStage] = useState<SupplyStage>('idle');
   const [startBanner, setStartBanner] = useState(false);
@@ -241,8 +234,24 @@ export default function App() {
     const isActive = activeSeat === seat || pendingReturnWinner;
     // 用户 2026-11-16：轮到某人行动时，他之前打出的牌/「不出」先隐去，等他打出新的牌再显示
     const action = isActive ? null : getSeatTrickAction(game, seat);
-    // 别人也能看到行动者的闹钟倒计时（自己那侧用按钮条里的倒计时）
-    const clockSeconds = isActive && seat !== selfSeat ? turnRemaining : null;
+    // 别人也能看到行动者的闹钟倒计时（自己那侧用按钮条里的倒计时）；只有出牌阶段才显示
+    const clockSeconds = game.phase === 'PLAYING' && isActive && seat !== selfSeat ? turnRemaining : null;
+    // 公开身份徽标：双地者显示「双地」，普通地主显示「地主」，其余不显示
+    const badgeText = isLandlordPublic(game, seat)
+      ? game.doubleSeat === seat
+        ? '双地'
+        : '地主'
+      : null;
+    // 明牌的两张 ♠3/♠A 显示在明牌者自己的出牌区（开始游戏前）
+    const revealCards =
+      game.phase === 'LOCK_WINDOW' && game.revealedSeat === seat
+        ? (game.players[seat]?.hand ?? []).filter(
+            (card) => card.suit === 4 && (card.rank === 14 || card.rank === 16),
+          )
+        : null;
+    // 回牌阶段：他回出的牌显示在他自己的出牌区
+    const returnedCards =
+      returnState?.returned.find((row) => row.seat === seat)?.cards ?? null;
     const supplyFromLoser =
       plannedSupply?.losers.find((row) => row.seat === seat)?.cards ??
       (supplyStage === 'show' ? transfers.filter((row) => row.from === seat).map((row) => row.card) : []);
@@ -258,6 +267,9 @@ export default function App() {
           out={status?.out ?? false}
           playedCards={action?.kind === 'PLAY' ? action.cards : null}
           passed={action?.kind === 'PASS'}
+          revealCards={revealCards}
+          extraCards={returnedCards}
+          badgeText={badgeText}
           countdownSeconds={clockSeconds}
           countdownTotal={Math.round(T.turn / 1000)}
         />
@@ -361,11 +373,22 @@ export default function App() {
               </div>
             )}
 
+            {/* 回牌阶段：自己回出的牌显示在桌面中间（别人的显示在他们自己的出牌区） */}
+            {returnState !== null && (() => {
+              const selfReturned = returnState.returned.find((row) => row.seat === selfSeat)?.cards;
+              if (selfReturned === undefined || selfReturned.length === 0) return null;
+              return (
+                <div className="center__zone">
+                  <CardRow cards={selfReturned} size="played" />
+                </div>
+              );
+            })()}
+
             {/* 供牌结束 → 只显示倒计时；平局后的那一局加上「本局平平无奇」 */}
             {game.phase === 'LOCK_WINDOW' && (
               <div className="center-card">
                 {game.result?.draw === true && <p className="draw-flavor">本局平平无奇</p>}
-                {game.revealedSeat !== null && (
+                {game.revealedSeat !== null && game.revealedSeat === selfSeat && (
                   <div className="reveal-show">
                     {publicCardList(game).map((card) => (
                       <PokerCard key={card.id} card={card} size="played" />
@@ -419,6 +442,9 @@ export default function App() {
             </button>
             <button type="button" className="debug__btn debug__btn--icon" onClick={() => setHelpOpen(true)} aria-label="规则速查">
               ?
+            </button>
+            <button type="button" className="debug__btn" onClick={() => setSettingsOpen(true)}>
+              设置
             </button>
             <span className="debug__seed">种子 {seed}</span>
           </div>
@@ -563,6 +589,55 @@ export default function App() {
                   ))}
                 </div>
               ))}
+            </div>
+          )}
+
+          {settingsOpen && (
+            <div className="overlay" onClick={() => setSettingsOpen(false)}>
+              <div className="help settings" onClick={(event) => event.stopPropagation()}>
+                <h2>参数设置（测试用）</h2>
+                <div className="settings__grid">
+                  {(
+                    [
+                      ['deal', '发牌动画'],
+                      ['reveal', '明牌/供牌倒计时'],
+                      ['supplyMove', '供牌飞牌'],
+                      ['returnSelect', '回牌倒计时'],
+                      ['returnPick', '挑回牌倒计时'],
+                      ['lock', '开始游戏前倒计时'],
+                      ['turn', '出牌回合'],
+                      ['autoPickStep', '整批转移间隔'],
+                    ] as [keyof typeof T, string][]
+                  ).map(([key, label]) => (
+                    <label key={key} className="settings__row">
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={T[key]}
+                        onChange={(event) => setTiming(key, Number(event.target.value))}
+                      />
+                      <em>ms</em>
+                    </label>
+                  ))}
+                </div>
+                <div className="settings__seed">
+                  <span>随机种子</span>
+                  <input value={seedInput} onChange={(event) => setSeedInput(event.target.value)} />
+                  <button
+                    type="button"
+                    className="debug__btn"
+                    onClick={() => restartWithSeed(Number(seedInput) || 0)}
+                  >
+                    用该种子重开
+                  </button>
+                </div>
+                <p className="settings__tip">「直接指定 1/2/3/4 名」需要改引擎状态机，暂未提供，后续可加。</p>
+                <button type="button" className="debug__btn" onClick={() => setSettingsOpen(false)}>
+                  完成
+                </button>
+              </div>
             </div>
           )}
 

@@ -36,6 +36,12 @@ export interface SeatWidgetProps {
   playedCards: Card[] | null;
   /** 本次选择了「不出」 */
   passed: boolean;
+  /** 明牌公开的 ♠3/♠A：显示在他自己的出牌区（优先于出牌/不出） */
+  revealCards?: Card[] | null;
+  /** 回牌阶段他回出的牌：显示在他自己的出牌区（优先于出牌/不出） */
+  extraCards?: Card[] | null;
+  /** 公开身份徽标文字：'地主' / '双地'；不传或空串则不显示 */
+  badgeText?: string | null;
   /** 倒计时剩余秒数；null 不显示闹钟 */
   countdownSeconds: number | null;
   /** 倒计时总时长，用于环形进度（默认 30 秒） */
@@ -131,15 +137,32 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
     out,
     playedCards,
     passed,
+    revealCards,
+    extraCards,
+    badgeText,
     countdownSeconds,
     countdownTotal = 30,
   } = props;
 
   const initial = name.trim().charAt(0) || '?';
 
-  // 出牌 / 不出：放在靠近牌桌中心的一侧（具体位置由 seat.css 按 slot 决定）
+  const badge = badgeText ?? (isLandlord ? '地主' : null);
+
+  // 出牌区优先级：明牌的两张 > 回牌 > 本次出牌 >「不出」
   let center: ReactElement | null = null;
-  if (playedCards !== null && playedCards.length > 0) {
+  if (revealCards !== undefined && revealCards !== null && revealCards.length > 0) {
+    center = (
+      <div className="seat__play seat__play--reveal">
+        <CardRow cards={revealCards} size="played" />
+      </div>
+    );
+  } else if (extraCards !== undefined && extraCards !== null && extraCards.length > 0) {
+    center = (
+      <div className="seat__play seat__play--return">
+        <CardRow cards={extraCards} size="played" />
+      </div>
+    );
+  } else if (playedCards !== null && playedCards.length > 0) {
     center = (
       <div className="seat__play">
         <CardRow cards={playedCards} size="played" />
@@ -171,9 +194,9 @@ export function SeatWidget(props: SeatWidgetProps): ReactElement {
         <span className="seat__avatar" aria-hidden="true">
           {initial}
         </span>
-        {isLandlord ? (
-          <span className="seat__landlord" aria-hidden="true">
-            地主
+        {badge !== null ? (
+          <span className={isLandlord ? 'seat__landlord' : 'seat__landlord seat__landlord--none'} aria-hidden="true">
+            {badge}
           </span>
         ) : null}
         {medal !== null ? (
