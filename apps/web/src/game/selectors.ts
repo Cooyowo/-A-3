@@ -306,26 +306,40 @@ export function getSettleView(game: GameState): SettleView | null {
   const debt = result.draw ? null : buildDebt(game, result);
   const gainOf = (seat: number): number => {
     if (debt === null) return 0;
-    if (debt.winners.includes(seat)) return debt.amountPerLoser;
+    // 牌数守恒：输家每人 -n，赢家平分总张数（双地明牌 L 输：L −12、其余三家各 +4）
     if (debt.losers.includes(seat)) return -debt.amountPerLoser;
+    if (debt.winners.includes(seat)) {
+      return Math.round(debt.total / Math.max(1, debt.winners.length));
+    }
     return 0;
   };
-  const identityOf = (seat: number): string => {
-    if (!game.landlordSeats.includes(seat)) return '-';
-    if (game.doubleSeat === seat) return '♠3♠A';
-    const holds: string[] = [];
-    if (game.landlordSeats.includes(seat)) {
-      // 地主牌固定：♥/♣/♦3 不算，只有 ♠3、♠A 是地主牌
-      holds.push('♠3');
+  // 地主牌归属：先看手牌，再看日志里谁打出过 ♠3/♠A；实在找不到就按地主座位顺序兜底
+  const landlordCardOwner = (rank: 14 | 16): number | null => {
+    for (const player of game.players) {
+      if (player.hand.some((card) => card.rank === rank && card.suit === 4)) return player.seat;
     }
-    // 用实际手牌区分：手里有 ♠A 的算 ♠A 玩家，否则算 ♠3 玩家
-    const hand = game.players[seat]?.hand ?? [];
-    const hasAce = hand.some((card) => card.rank === 14 && card.suit === 4);
-    const hasThree = hand.some((card) => card.rank === 16 && card.suit === 4);
-    if (hasAce && hasThree) return '♠3♠A';
-    if (hasAce) return '♠A';
-    if (hasThree) return '♠3';
-    return holds.length > 0 ? '♠3' : '-';
+    for (let index = game.log.length - 1; index >= 0; index -= 1) {
+      const event = game.log[index];
+      if (event?.t === 'PLAY' && event.cards.some((card) => card.rank === rank && card.suit === 4)) {
+        return event.seat;
+      }
+    }
+    return null;
+  };
+  const ownerA = landlordCardOwner(14);
+  const owner3 = landlordCardOwner(16);
+  const identityOf = (seat: number): string => {
+    if (game.doubleSeat === seat) return '♠3♠A';
+    if (!game.landlordSeats.includes(seat)) return '-';
+    const marks: string[] = [];
+    if (owner3 === seat) marks.push('♠3');
+    if (ownerA === seat) marks.push('♠A');
+    if (marks.length === 0) {
+      // 兜底：非双地两个地主座位里，靠前的当 ♠3、靠后的当 ♠A
+      const order = [...game.landlordSeats].sort((a, b) => a - b);
+      return order[0] === seat ? '♠3' : '♠A';
+    }
+    return marks.join('');
   };
   return {
     result,

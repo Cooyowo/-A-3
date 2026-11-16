@@ -25,6 +25,8 @@ import { cardsByIds, getActiveSeat } from './selectors';
 export interface HotseatGame {
   game: GameState;
   seed: number;
+  /** 第几次「新开一局」：用来让所有倒计时 key 一起重置（否则新开一局倒计时不会重新开始） */
+  session: number;
   /** 当前点选（等待出牌/回牌）的牌 id */
   selectedCardIds: number[];
   /** 顶部提示（非法操作原因、操作成功反馈等） */
@@ -65,12 +67,13 @@ export interface HotseatActions {
 
 export type HotseatStore = HotseatGame & HotseatActions;
 
-function initialState(seed: number): HotseatGame {
+function initialState(seed: number, session = 0): HotseatGame {
   const rng: Rng = mulberry32(seed);
   const game = autoAdvance(createGame(rng));
   return {
     game,
     seed,
+    session,
     selectedCardIds: [],
     notice: null,
     noticeTone: 'info',
@@ -130,7 +133,12 @@ export const useHotseatStore = create<HotseatStore>((set, get) => {
 
     newGame(seed) {
       const nextSeed = seed ?? Math.floor(Math.random() * 2 ** 31);
-      set({ ...initialState(nextSeed), notice: `新开一局（种子 ${nextSeed}）`, noticeTone: 'success' });
+      const session = get().session + 1;
+      set({
+        ...initialState(nextSeed, session),
+        notice: `新开一局（种子 ${nextSeed}）`,
+        noticeTone: 'success',
+      });
     },
 
     toggleCard(cardId) {

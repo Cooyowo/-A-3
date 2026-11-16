@@ -60,6 +60,7 @@ type SupplyStage = 'idle' | 'show' | 'move' | 'done';
 export default function App() {
   const game = useHotseatStore((state) => state.game);
   const seed = useHotseatStore((state) => state.seed);
+  const session = useHotseatStore((state) => state.session);
   const selectedIds = useHotseatStore((state) => state.selectedCardIds);
   const notice = useHotseatStore((state) => state.notice);
   const noticeTone = useHotseatStore((state) => state.noticeTone);
@@ -111,7 +112,7 @@ export default function App() {
   const selfHand = useMemo(() => sortHandDesc(game.players[selfSeat]?.hand ?? []), [game, selfSeat]);
   const effectiveSelected = isSelfTurn ? selectedIds : [];
 
-  const turnKey = `${game.handNo}-${game.trickNo}-${activeSeat ?? 'x'}-${game.log.length}`;
+  const turnKey = `${session}-${game.handNo}-${game.trickNo}-${activeSeat ?? 'x'}-${game.log.length}`;
   // 倒计时显示用「秒」，而 T 里的时长是给 setTimeout 的毫秒
   const turnRemaining = useCountdown(turnKey, Math.round(T.turn / 1000));
 
@@ -124,14 +125,14 @@ export default function App() {
       ? null
       : returnState.seats.find((row) => row.seat === returnDisplaySeat) ?? null;
   const returnIsActor = returnDisplayRow !== null && !returnDisplayRow.done;
-  const returnKey = `${game.handNo}-return-${game.supplyContext?.step ?? 'x'}`;
+  const returnKey = `${session}-${game.handNo}-return-${game.supplyContext?.step ?? 'x'}`;
   const returnRemaining = useCountdown(returnKey, Math.round(T.returnSelect / 1000));
-  const pickKey = `${game.handNo}-pick-${pickState?.picker ?? 'x'}-${pickState?.pool.length ?? 0}`;
+  const pickKey = `${session}-${game.handNo}-pick-${pickState?.picker ?? 'x'}-${pickState?.pool.length ?? 0}`;
   const pickRemaining = useCountdown(pickKey, Math.round(T.returnPick / 1000));
-  const revealKey = `${game.handNo}-reveal-${game.phase}`;
+  const revealKey = `${session}-${game.handNo}-reveal-${game.phase}`;
   const revealRemaining = useCountdown(revealKey, Math.round(T.reveal / 1000));
   // 锁定窗口的倒计时：只有真的进入 LOCK_WINDOW 才开始走（否则会从开局就倒数、到这一步已经归零）
-  const lockKey = `${game.handNo}-lock-${game.phase}`;
+  const lockKey = `${session}-${game.handNo}-lock-${game.phase}`;
   const lockRemaining = useCountdown(lockKey, Math.round(T.lock / 1000));
   const selfLockEligible = game.phase === 'LOCK_WINDOW' && lockEligible(game, selfSeat);
   const selfLockIntent = game.lockIntents.get(selfSeat) === true;
@@ -235,7 +236,9 @@ export default function App() {
 
   const renderOpponent = (seat: number, slot: 'top' | 'top-left' | 'top-right') => {
     const status = statuses.find((item) => item.seat === seat);
-    const isActive = activeSeat === seat;
+    const pendingReturnWinner =
+      returnState !== null && returnState.seats.some((row) => row.seat === seat && !row.done);
+    const isActive = activeSeat === seat || pendingReturnWinner;
     // 用户 2026-11-16：轮到某人行动时，他之前打出的牌/「不出」先隐去，等他打出新的牌再显示
     const action = isActive ? null : getSeatTrickAction(game, seat);
     // 别人也能看到行动者的闹钟倒计时（自己那侧用按钮条里的倒计时）

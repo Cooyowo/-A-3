@@ -547,3 +547,56 @@
   gap: 0.6vw;
   margin: 0.3dvh 0 0.6dvh;
 }
+
+/* 座位旁的「不出」改成和桌面中央一样的大字（每个人自己的出牌区中央） */
+.seat__passed {
+  font-size: calc(var(--hand-card-h, 60px) * 0.42);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #5a3410;
+  text-shadow: 0 0.2dvh 0.9dvh rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+/* 9) 结算面板改成浅暖米色（不要暗沉深色） */
+.pp-settle {
+  background: linear-gradient(180deg, rgba(255, 250, 238, 0.98) 0%, rgba(250, 240, 220, 0.99) 100%) !important;
+  border: 1px solid rgba(190, 150, 70, 0.55) !important;
+  color: #4a3418 !important;
+  border-radius: 22px !important;
+  box-shadow: 0 2dvh 6dvh rgba(90, 60, 20, 0.28) !important;
+}
+.pp-settle .pp-kicker { color: #8a6a34 !important; }
+.pp-settle .pp-outcome { color: #b3731a !important; }
+.pp-settle .pp-score-name,
+.pp-settle .pp-score-value { color: #4a3418 !important; }
+.pp-settle .pp-ranks th { color: #8a6a34 !important; }
+.pp-settle .pp-ranks td { color: #4a3418 !important; border-top: 1px solid rgba(120, 90, 40, 0.18) !important; }
+.pp-settle .pp-identity { color: #a35f12 !important; }
+.pp-settle .pp-gain--plus { color: #1f8a3b !important; }
+.pp-settle .pp-gain--minus { color: #c0392b !important; }
+
+/* 按钮 hover：轻微放大 + 提亮，过渡顺滑、不做夸张特效 */
+.as__btn,
+.btn-primary,
+.btn-ghost {
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.as__btn:not(:disabled):hover,
+.btn-primary:not(:disabled):hover,
+.btn-ghost:not(:disabled):hover {
+  transform: translateY(-1px) scale(1.045);
+  filter: brightness(1.08);
+  box-shadow: 0 0.5dvh 1.4dvh rgba(90, 60, 20, 0.26);
+}
+
+.as__btn:not(:disabled):active,
+.btn-primary:not(:disabled):active,
+.btn-ghost:not(:disabled):active {
+  transform: translateY(0) scale(0.99);
+}

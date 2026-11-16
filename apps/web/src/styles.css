@@ -54,3 +54,18 @@ button {
 #root {
   height: 100%;
 }
+
+/* 2026-11-16：禁止选中页面文字（拖动牌/点按钮时不要选中文字） */
+body,
+.tbl-shell,
+button,
+span,
+p,
+table {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input {
+  -webkit-user-select: text;
+  user-select: text;
+}

@@ -24,7 +24,7 @@
 .scene {
   background-image: url('/bg.jpg');
   background-size: cover;
-  background-position: center center;
+  background-position: calc(50% - 40px) center;
   background-repeat: no-repeat;
 }
 
@@ -139,4 +139,13 @@
 .return-actions__count,
 .return-actions__timer {
   color: #5f4520;
+}
+
+/* 自己行动时头像也变绿（和座位上的高亮保持一致） */
+.self-info[data-active='true'] .self-avatar {
+  background: radial-gradient(circle at 35% 30%, #a8f07f, #52c41a 72%);
+  color: #10300a;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 2dvh rgba(82, 196, 26, 0.55);
 }

@@ -497,3 +497,19 @@
 .clock--lg .clock__value {
   font-size: clamp(18px, 5dvh, 34px);
 }
+
+/* 2026-11-16：行动者头像直接换成绿色底（不再用外圈光圈），换人后恢复白色 */
+.seat--active .seat__avatar {
+  background: radial-gradient(circle at 35% 30%, #a8f07f, #52c41a 72%);
+  color: #10300a;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 2.2dvh rgba(82, 196, 26, 0.6);
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat--active .seat__avatar {
+    animation: none;
+  }
+}
