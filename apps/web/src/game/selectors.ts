@@ -251,6 +251,10 @@ export interface SettleRow {
   locked: boolean;
   out: boolean;
   handCount: number;
+  /** 身份：'♠A' / '♠3' / '♠3♠A'（双地）/ '-'（非地主方） */
+  identityText: string;
+  /** 下一局供牌收支：赢家 +n（绿），输家 -n（红），平局 0 */
+  gain: number;
 }
 
 export interface SettleView {
@@ -299,6 +303,30 @@ export function getNextFirstText(game: GameState): string {
 export function getSettleView(game: GameState): SettleView | null {
   const result = game.result;
   if (result === null) return null;
+  const debt = result.draw ? null : buildDebt(game, result);
+  const gainOf = (seat: number): number => {
+    if (debt === null) return 0;
+    if (debt.winners.includes(seat)) return debt.amountPerLoser;
+    if (debt.losers.includes(seat)) return -debt.amountPerLoser;
+    return 0;
+  };
+  const identityOf = (seat: number): string => {
+    if (!game.landlordSeats.includes(seat)) return '-';
+    if (game.doubleSeat === seat) return '♠3♠A';
+    const holds: string[] = [];
+    if (game.landlordSeats.includes(seat)) {
+      // 地主牌固定：♥/♣/♦3 不算，只有 ♠3、♠A 是地主牌
+      holds.push('♠3');
+    }
+    // 用实际手牌区分：手里有 ♠A 的算 ♠A 玩家，否则算 ♠3 玩家
+    const hand = game.players[seat]?.hand ?? [];
+    const hasAce = hand.some((card) => card.rank === 14 && card.suit === 4);
+    const hasThree = hand.some((card) => card.rank === 16 && card.suit === 4);
+    if (hasAce && hasThree) return '♠3♠A';
+    if (hasAce) return '♠A';
+    if (hasThree) return '♠3';
+    return holds.length > 0 ? '♠3' : '-';
+  };
   return {
     result,
     landlordScore: result.lScore,
@@ -313,6 +341,8 @@ export function getSettleView(game: GameState): SettleView | null {
       locked: player.locked,
       out: player.out,
       handCount: player.hand.length,
+      identityText: identityOf(player.seat),
+      gain: gainOf(player.seat),
     })),
     nextDebtText: getNextDebtText(game),
     nextFirstText: getNextFirstText(game),
@@ -338,11 +368,11 @@ export function getLastPlayText(game: GameState): { seat: number; label: string;
 export type SeatTrickAction = { kind: 'PLAY'; cards: Card[] } | { kind: 'PASS' };
 
 export function getSeatTrickAction(game: GameState, seat: number): SeatTrickAction | null {
+  // 用户 2026-11-16：某家打出的牌/「不出」要一直留着，直到下一次轮到他出牌（不再按「墩」清空）
   for (let index = game.log.length - 1; index >= 0; index -= 1) {
     const event = game.log[index];
     if (event === undefined) continue;
     if (event.t !== 'PLAY' && event.t !== 'PASS') continue;
-    if (event.trick !== game.trickNo) continue;
     if (event.seat !== seat) continue;
     return event.t === 'PLAY' ? { kind: 'PLAY', cards: event.cards } : { kind: 'PASS' };
   }

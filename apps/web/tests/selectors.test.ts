@@ -31,8 +31,8 @@ function freshGame(): GameState {
   return createGame(mulberry32(20261115));
 }
 
-describe('getSeatTrickAction：按「墩」显示每人最后动作', () => {
-  it('同一墩里的出牌与不出都能取到；换墩后旧记录不再显示', () => {
+describe('getSeatTrickAction：显示每人最后一次出牌/不出', () => {
+  it('同一墩里取最新动作；换墩后仍保留，直到该玩家下次动作才更新', () => {
     const game = freshGame();
     const seat = 1;
     const card = makeCard(7, 4);
@@ -45,9 +45,14 @@ describe('getSeatTrickAction：按「墩」显示每人最后动作', () => {
     game.log.push({ t: 'PASS', seat, trick: 1 });
     expect(getSeatTrickAction(game, seat)).toEqual({ kind: 'PASS' });
 
-    // 进入下一墩：清空，不再显示上一墩的动作
+    // 用户 2026-11-16：换墩后不再清空，要一直留到他下次出牌
     game.trickNo = 2;
-    expect(getSeatTrickAction(game, seat)).toBeNull();
+    expect(getSeatTrickAction(game, seat)).toEqual({ kind: 'PASS' });
+
+    // 该玩家下次真正出牌后才被替换
+    const nextCard = makeCard(9, 2);
+    game.log.push({ t: 'PLAY', seat, cards: [nextCard], type: 'SINGLE', trick: 2 });
+    expect(getSeatTrickAction(game, seat)).toEqual({ kind: 'PLAY', cards: [nextCard] });
 
     // 其他座位没有动作
     expect(getSeatTrickAction(game, 2)).toBeNull();

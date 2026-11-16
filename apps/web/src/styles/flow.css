@@ -336,12 +336,12 @@
 /* ---------------------------------------------------------------- 「不出」大字（用户要求更显眼） */
 
 .center__pass {
-  /* 两个字的总宽 ≈ 一张手牌的宽度（手牌宽 = 牌高 × 0.71），所以字号取 0.355 牌高 */
-  font-size: calc(var(--hand-card-h, 60px) * 0.355);
-  font-weight: 800;
-  letter-spacing: 0;
-  color: #7a4a12;
-  text-shadow: 0 0.3dvh 1dvh rgba(255, 255, 255, 0.45);
+  /* 用户 2026-11-16：再放大一档（两个字明显比一张牌宽） */
+  font-size: calc(var(--hand-card-h, 60px) * 0.46);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #5a3410;
+  text-shadow: 0 0.3dvh 1dvh rgba(255, 255, 255, 0.5);
 }
 
 /* ---------------------------------------------------------------- 流程面板（锁定窗口 / 结算）跟随暖色主题 */
@@ -530,4 +530,20 @@
   display: inline-flex;
   align-items: center;
   margin-right: 0.6vw;
+}
+
+/* 供牌/挑回牌按钮条与出牌条共用按钮尺寸变量 */
+.pick-bar {
+  --as-h: calc(100dvh * 0.105);
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+}
+
+/* 明牌后展示的 ♠3 / ♠A */
+.reveal-show {
+  display: flex;
+  justify-content: center;
+  gap: 0.6vw;
+  margin: 0.3dvh 0 0.6dvh;
 }

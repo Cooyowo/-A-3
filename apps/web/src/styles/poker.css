@@ -189,8 +189,8 @@ button.pk {
   pointer-events: none;
 }
 .pk__corner-rank {
-  /* 下限 7px：座位旁那些 17~24px 高的小牌也还能看清点数 */
-  font-size: max(7px, calc(var(--pk-h) * 0.3));
+  /* 用户 2026-11-16：数字/花色再放大，宽度约占牌宽的 2/5~1/2 */
+  font-size: max(8px, calc(var(--pk-h) * 0.4));
   font-weight: 800;
   line-height: 0.95;
   /* 收紧字距，保证「10」这种两位数宽度仍小于叠放露出宽度 */
@@ -200,7 +200,7 @@ button.pk {
 }
 .pk__corner-suit {
   margin-top: calc(var(--pk-h) * 0.012);
-  font-size: max(6.5px, calc(var(--pk-h) * 0.26));
+  font-size: max(7px, calc(var(--pk-h) * 0.34));
   line-height: 0.9;
 }
 

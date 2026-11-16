@@ -406,9 +406,10 @@ export function SettlePanel(props: {
             <tr>
               <th scope="col">名次</th>
               <th scope="col">座位</th>
-              <th scope="col">队伍</th>
-              <th scope="col">分</th>
-              <th scope="col">剩</th>
+              <th scope="col">身份</th>
+              <th scope="col">得分/分</th>
+              <th scope="col">剩余/张</th>
+              <th scope="col">获取</th>
             </tr>
           </thead>
           <tbody>
@@ -425,24 +426,16 @@ export function SettlePanel(props: {
                   {row.label}
                   {row.locked && <span className="pp-tag pp-tag--ok">锁</span>}
                 </td>
-                <td>{row.isLandlord ? '地主方' : '非地主方'}</td>
+                <td className="pp-identity">{row.identityText}</td>
                 <td className="pp-num">{row.score}</td>
                 <td className="pp-num">{row.handCount}</td>
+                <td className={row.gain > 0 ? 'pp-num pp-gain--plus' : row.gain < 0 ? 'pp-num pp-gain--minus' : 'pp-num'}>
+                  {row.gain > 0 ? `+${row.gain}` : row.gain < 0 ? `${row.gain}` : '0'}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-
-        <div className="pp-next">
-          <p className="pp-next-line">
-            <span className="pp-next-label">供牌</span>
-            {view.nextDebtText}
-          </p>
-          <p className="pp-next-line">
-            <span className="pp-next-label">首发</span>
-            {view.nextFirstText}
-          </p>
-        </div>
       </div>
 
       <div className="pp-actions">

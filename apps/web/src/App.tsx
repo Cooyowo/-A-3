@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { lockEligible, validatePlay } from '@a3/core';
+import { legalActions, lockEligible, validatePlay } from '@a3/core';
 import type { Card } from '@a3/core';
 
 import { ActionStrip } from './components/ActionStrip';
@@ -25,10 +25,10 @@ import {
   getSupplyTransfers,
   getTurnLabel,
   isLandlordPublic,
+  publicCardList,
   shouldTintSupply,
   sortHandDesc,
-} from './game/selectors';
-import { supplyDeadlocked, useHotseatStore } from './game/store';
+} from './game/selectors';import { supplyDeadlocked, useHotseatStore } from './game/store';
 import { useCountdown } from './game/useCountdown';
 import './styles/table.css';
 import './styles/flow.css';
@@ -124,13 +124,14 @@ export default function App() {
       ? null
       : returnState.seats.find((row) => row.seat === returnDisplaySeat) ?? null;
   const returnIsActor = returnDisplayRow !== null && !returnDisplayRow.done;
-  const returnKey = `${game.handNo}-return`;
+  const returnKey = `${game.handNo}-return-${game.supplyContext?.step ?? 'x'}`;
   const returnRemaining = useCountdown(returnKey, Math.round(T.returnSelect / 1000));
   const pickKey = `${game.handNo}-pick-${pickState?.picker ?? 'x'}-${pickState?.pool.length ?? 0}`;
   const pickRemaining = useCountdown(pickKey, Math.round(T.returnPick / 1000));
-  const revealKey = `${game.handNo}-reveal`;
+  const revealKey = `${game.handNo}-reveal-${game.phase}`;
   const revealRemaining = useCountdown(revealKey, Math.round(T.reveal / 1000));
-  const lockKey = `${game.handNo}-lock`;
+  // 锁定窗口的倒计时：只有真的进入 LOCK_WINDOW 才开始走（否则会从开局就倒数、到这一步已经归零）
+  const lockKey = `${game.handNo}-lock-${game.phase}`;
   const lockRemaining = useCountdown(lockKey, Math.round(T.lock / 1000));
   const selfLockEligible = game.phase === 'LOCK_WINDOW' && lockEligible(game, selfSeat);
   const selfLockIntent = game.lockIntents.get(selfSeat) === true;
@@ -140,6 +141,12 @@ export default function App() {
     if (selectedIds.length === 0) return { ok: false, reason: '点选要出的牌' };
     return validatePlay(game, activeSeat, cardsByIds(game, selectedIds));
   }, [game, activeSeat, selectedIds, isSelfTurn]);
+
+  // 手里有没有任何能压过的牌：没有就隐藏「出牌/清空」（用户 2026-11-16）
+  const hasPlayablePlay = useMemo(() => {
+    if (!isSelfTurn || activeSeat === null) return false;
+    return legalActions(game, activeSeat).some((action) => action.kind === 'PLAY');
+  }, [game, activeSeat, isSelfTurn]);
 
   const selfAction = isSelfTurn ? null : getSeatTrickAction(game, selfSeat);
   const selfStatus = statuses.find((status) => status.seat === selfSeat);
@@ -153,7 +160,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [entered, game.handNo]);
 
-  // 供牌展示 → 飞牌 → 完成
+  // 供牌：倒计时（REVEAL 阶段）期间已经把要供的牌标色展示出来；
+  // 倒计时结束、引擎执行完供牌后，直接播 0.8s 飞牌动画，然后进入回牌。
   useEffect(() => {
     const enteringReturnSelect = game.phase === 'SUPPLY' && game.supplyContext?.step === 'RETURN_SELECT';
     const hasTransfers = getSupplyTransfers(game).length > 0;
@@ -161,13 +169,9 @@ export default function App() {
       setSupplyStage('done');
       return;
     }
-    setSupplyStage('show');
-    const showTimer = setTimeout(() => setSupplyStage('move'), T.supplyShow);
-    const moveTimer = setTimeout(() => setSupplyStage('done'), T.supplyShow + T.supplyMove);
-    return () => {
-      clearTimeout(showTimer);
-      clearTimeout(moveTimer);
-    };
+    setSupplyStage('move');
+    const moveTimer = setTimeout(() => setSupplyStage('done'), T.supplyMove);
+    return () => clearTimeout(moveTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.handNo, game.phase, game.supplyContext?.step]);
 
@@ -358,6 +362,13 @@ export default function App() {
             {game.phase === 'LOCK_WINDOW' && (
               <div className="center-card">
                 {game.result?.draw === true && <p className="draw-flavor">本局平平无奇</p>}
+                {game.revealedSeat !== null && (
+                  <div className="reveal-show">
+                    {publicCardList(game).map((card) => (
+                      <PokerCard key={card.id} card={card} size="played" />
+                    ))}
+                  </div>
+                )}
                 <div className="center-card__timer">{lockRemaining}</div>
               </div>
             )}
@@ -431,12 +442,9 @@ export default function App() {
                     hintDisabled={false}
                     playDisabled={!playCheck.ok}
                     clearDisabled={selectedIds.length === 0}
+                    hasPlayablePlay={hasPlayablePlay}
                   />
-                ) : (
-                  <div className="strip-wrap strip-wrap--readonly">
-                    {viewSeat !== null && viewSeat !== activeSeat ? '只读视角（不是该玩家回合）' : '等待其他玩家出牌'}
-                  </div>
-                )}
+                ) : null}
               </div>
               <HandFan
                 cards={selfHand}
